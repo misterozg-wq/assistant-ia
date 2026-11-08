@@ -73,7 +73,7 @@ const DEFAULT_PROVIDERS = [
     help:'Clé gratuite (offre « Experiment ») : <a href="https://console.mistral.ai/api-keys" target="_blank">console.mistral.ai</a>' },
   { id:'deepseek_or',name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
     help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit disponible.' },
-  { id:'groq',       name:'Groq (Llama, gratuit)', url:'https://api.groq.com/openai/v1/chat/completions', model:'llama-3.3-70b-versatile', enabled:true,
+  { id:'groq',       name:'Groq (gratuit)', url:'https://api.groq.com/openai/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
     help:'Clé gratuite : <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>' },
   { id:'deepseek',   name:'DeepSeek (officiel, payant)', url:'https://api.deepseek.com/chat/completions', model:'deepseek-chat', enabled:false,
     help:'API payante (peu chère) : <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com</a>' },
@@ -87,7 +87,7 @@ const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iP
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash'];
+const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash','llama-3.3-70b-versatile'];
 const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 let providers = mergeProviders(load('providers', null));
 let keys      = load('keys', {});
