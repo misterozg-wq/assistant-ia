@@ -68,18 +68,16 @@
 <script>
 // ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
 const DEFAULT_PROVIDERS = [
-  { id:'gemini',     name:'Google Gemini',         url:'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model:'gemini-flash-lite-latest', enabled:true,
-    help:'Clé gratuite : <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>' },
-  { id:'mistral',    name:'Mistral AI',            url:'https://api.mistral.ai/v1/chat/completions', model:'mistral-small-latest', enabled:true,
-    help:'Clé gratuite (offre « Experiment ») : <a href="https://console.mistral.ai/api-keys" target="_blank">console.mistral.ai</a>' },
-  { id:'deepseek_or',name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
-    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit disponible.' },
-  { id:'groq',       name:'Groq (gratuit)', url:'https://api.groq.com/openai/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
-    help:'Clé gratuite : <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>' },
-  { id:'deepseek',   name:'DeepSeek (officiel, payant)', url:'https://api.deepseek.com/chat/completions', model:'deepseek-chat', enabled:false,
-    help:'API payante (peu chère) : <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com</a>' },
-  { id:'openai',     name:'ChatGPT / OpenAI (payant)', url:'https://api.openai.com/v1/chat/completions', model:'gpt-4o-mini', enabled:false,
-    help:'API payante : <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>' },
+  { id:'deepseek_or', name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
+    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit.' },
+  { id:'llm7', name:'LLM7.io (gratuit, sans clé)', url:'https://api.llm7.io/v1/chat/completions', model:'default', enabled:true, noKey:true, anonKey:'unused',
+    help:'Fonctionne sans clé. Clé gratuite facultative (limites plus hautes) : <a href="https://token.llm7.io" target="_blank">token.llm7.io</a>' },
+  { id:'pollinations', name:'Pollinations (gratuit, sans clé)', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true,
+    help:'Fonctionne sans clé (lent, limité). Clé gratuite facultative : <a href="https://enter.pollinations.ai" target="_blank">enter.pollinations.ai</a>' },
+  { id:'cohere', name:'Cohere (gratuit, 1000 messages/mois)', url:'https://api.cohere.ai/compatibility/v1/chat/completions', model:'command-a-03-2025', enabled:true,
+    help:'Clé d\'essai gratuite, sans carte : <a href="https://dashboard.cohere.com/api-keys" target="_blank">dashboard.cohere.com</a> — usage non commercial.' },
+  { id:'nvidia', name:'NVIDIA NIM (gratuit)', url:'https://integrate.api.nvidia.com/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
+    help:'Clé gratuite (vérification par SMS) : <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>' },
 ];
 
 const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iPhone) : réglages, applications, dépannage, sécurité, batterie, sauvegarde, transfert de données, réseaux et Wi-Fi. Réponds en français, de façon claire et concise, avec des étapes numérotées quand c'est utile. Pour les autres sujets, réponds aussi de ton mieux.";
@@ -92,6 +90,7 @@ const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash','ll
 const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 let providers = mergeProviders(load('providers', null));
 let keys      = load('keys', {});
+Object.keys(keys).forEach(k => { if (!DEFAULT_PROVIDERS.find(p => p.id === k)) delete keys[k]; });
 let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
 const PROFILES = {
   juridique:  { name:'⚖️ Droit & assurances', prompt:"Tu es un assistant juridique généraliste, spécialisé en droit français, en assurances et en droits sociaux. Tu réponds en français, de façon claire, structurée et concise.\n\nDomaines : droit civil (contrats, famille, succession, logement, voisinage), droit de la consommation, droit du travail, droit administratif courant ; assurances (Code des assurances, Code de la mutualité, santé, prévoyance, habitation, auto, multirisque professionnelle, emprunteur, responsabilité civile, sinistres, résiliation : lois Chatel, Hamon, Lemoine, résiliation infra-annuelle) ; protection sociale et droits sociaux (Sécurité sociale, CPAM, arrêts de travail, invalidité, accidents du travail, retraite, chômage France Travail, CAF, RSA, APL, MDPH, complémentaire santé solidaire).\n\nMéthode :\n1. Si la situation est floue, pose d'abord 1 à 3 questions précises (statut, dates, montants, type de contrat).\n2. Donne la réponse directe, puis les règles applicables en citant les articles de loi uniquement si tu en es sûr.\n3. Indique les démarches concrètes, délais, pièces à fournir et interlocuteurs (assureur, médiateur, CPAM, inspection du travail, conciliateur, avocat).\n4. Propose si utile un modèle de courrier (réclamation, résiliation, contestation, mise en demeure).\n\nRègles :\n- Distingue clairement ce qui est certain de ce qui dépend du contrat ou de la jurisprudence.\n- Les montants, plafonds et barèmes changent chaque année : signale-le et renvoie vers Légifrance, service-public.fr ou ameli.fr pour vérification.\n- N'invente jamais un article de loi, une jurisprudence ou un chiffre.\n- Pour un litige important ou une procédure judiciaire, recommande de consulter un avocat ou un juriste.\n- Pour les autres sujets, réponds aussi de ton mieux." },
@@ -143,7 +142,7 @@ function addMsg(role, text, by) {
 }
 function render() {
   chat.innerHTML = '';
-  if (!history.length) addMsg('sys', 'Posez votre question. Pensez à saisir au moins une clé API dans ⚙ Réglages.');
+  if (!history.length) addMsg('sys', 'Posez votre question.');
   history.forEach(m => addMsg(m.role, m.content, m.by));
 }
 function setStatus(t){ $('status').textContent = t || ''; }
@@ -166,7 +165,7 @@ async function callProvider(p, messages) {
   try {
     const r = await fetch(p.url, {
       method:'POST', signal: ctrl.signal,
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + keys[p.id] },
+      headers: Object.assign({ 'Content-Type':'application/json' }, (keys[p.id] || p.anonKey) ? { 'Authorization':'Bearer ' + (keys[p.id] || p.anonKey) } : {}),
       body: JSON.stringify({ model:p.model, messages, temperature:0.7 })
     });
     const txt = await r.text();
@@ -185,8 +184,8 @@ async function ask(userText) {
     ...history.slice(-20).map(m => ({role:m.role, content:m.content})),
     {role:'user', content:userText}];
   const now = Date.now();
-  const candidates = providers.filter(p => p.enabled && keys[p.id]);
-  if (!candidates.length) return { error:'Aucune IA configurée. Ouvrez ⚙ Réglages et saisissez au moins une clé API.' };
+  const candidates = providers.filter(p => p.enabled && (keys[p.id] || p.noKey));
+  if (!candidates.length) return { error:'Aucune IA activée. Ouvrez ⚙ Réglages.' };
 
   // D'abord ceux qui ne sont pas en pause, puis ceux en pause en dernier recours
   const ordered = [...candidates.filter(p => !(cooldown[p.id] > now)), ...candidates.filter(p => cooldown[p.id] > now)];
@@ -233,12 +232,12 @@ function renderSettings() {
     const div = document.createElement('div'); div.className = 'prov';
     div.innerHTML = `
       <div class="row">
-        <span class="dot ${keys[p.id] ? (paused ? 'ko' : 'ok') : ''}"></span>
+        <span class="dot ${(keys[p.id] || p.noKey) ? (paused ? 'ko' : 'ok') : ''}"></span>
         <span class="name">${i+1}. ${p.name}</span>
         <button data-up="${i}">↑</button><button data-down="${i}">↓</button>
         <input type="checkbox" data-en="${i}" ${p.enabled ? 'checked' : ''}>
       </div>
-      <input type="password" placeholder="Clé API" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
+      <input type="password" placeholder="${p.noKey ? 'Clé API (facultative)' : 'Clé API'}" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
       <div class="row"><input type="text" placeholder="Modèle" data-model="${i}" value="${esc(p.model)}"><button data-def="${i}" title="Modèle par défaut" style="margin-top:8px">↺</button></div>
       <div class="hint">${p.help}${paused ? '<br>⏸ En pause jusqu\'à ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
     list.appendChild(div);

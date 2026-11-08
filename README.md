@@ -24,11 +24,10 @@ Saisir au moins une clé API. Ordre de bascule modifiable (↑ ↓).
 
 | IA | Gratuit ? | Clé |
 |---|---|---|
-| Google Gemini | Oui (quota quotidien) | aistudio.google.com/apikey |
-| Mistral | Oui (offre Experiment) | console.mistral.ai |
 | OpenRouter (modèles gratuits, auto) | Oui | openrouter.ai/keys |
-| Groq (Llama) | Oui | console.groq.com/keys |
-| DeepSeek officiel | Payant (peu cher) | platform.deepseek.com |
-| ChatGPT / OpenAI | Payant | platform.openai.com |
+| LLM7.io | Oui, fonctionne sans clé | facultative : token.llm7.io |
+| Pollinations | Oui, fonctionne sans clé | facultative : enter.pollinations.ai |
+| Cohere | Oui, 1000 messages/mois, non commercial | dashboard.cohere.com |
+| NVIDIA NIM | Oui (vérification SMS) | build.nvidia.com |
 
 Bascule : en cas de quota atteint (429), crédit épuisé (402), clé refusée, panne ou erreur réseau, l'app passe à l'IA suivante et met la précédente en pause (15 min pour un quota, 6 h pour un crédit épuisé).
