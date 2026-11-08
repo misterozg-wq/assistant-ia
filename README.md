@@ -26,7 +26,7 @@ Saisir au moins une clé API. Ordre de bascule modifiable (↑ ↓).
 |---|---|---|
 | Google Gemini | Oui (quota quotidien) | aistudio.google.com/apikey |
 | Mistral | Oui (offre Experiment) | console.mistral.ai |
-| DeepSeek via OpenRouter | Oui (modèles `:free`) | openrouter.ai/keys |
+| OpenRouter (modèles gratuits, auto) | Oui | openrouter.ai/keys |
 | Groq (Llama) | Oui | console.groq.com/keys |
 | DeepSeek officiel | Payant (peu cher) | platform.deepseek.com |
 | ChatGPT / OpenAI | Payant | platform.openai.com |

@@ -71,8 +71,8 @@ const DEFAULT_PROVIDERS = [
     help:'Clé gratuite : <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>' },
   { id:'mistral',    name:'Mistral AI',            url:'https://api.mistral.ai/v1/chat/completions', model:'mistral-small-latest', enabled:true,
     help:'Clé gratuite (offre « Experiment ») : <a href="https://console.mistral.ai/api-keys" target="_blank">console.mistral.ai</a>' },
-  { id:'deepseek_or',name:'DeepSeek (via OpenRouter, gratuit)', url:'https://openrouter.ai/api/v1/chat/completions', model:'deepseek/deepseek-chat-v3-0324:free', enabled:true,
-    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — les modèles se terminant par « :free » sont gratuits.' },
+  { id:'deepseek_or',name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
+    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit disponible.' },
   { id:'groq',       name:'Groq (Llama, gratuit)', url:'https://api.groq.com/openai/v1/chat/completions', model:'llama-3.3-70b-versatile', enabled:true,
     help:'Clé gratuite : <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>' },
   { id:'deepseek',   name:'DeepSeek (officiel, payant)', url:'https://api.deepseek.com/chat/completions', model:'deepseek-chat', enabled:false,
@@ -93,10 +93,11 @@ let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel o
 let systemPrompt = load('system', DEFAULT_SYSTEM);
 let history   = load('history', []);           // [{role, content, by?}]
 
+const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free'];
 function mergeProviders(saved) {
   if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
   const byId = Object.fromEntries(DEFAULT_PROVIDERS.map(p => [p.id, p]));
-  const out = saved.filter(s => byId[s.id]).map(s => ({...byId[s.id], model:s.model || byId[s.id].model, enabled:s.enabled}));
+  const out = saved.filter(s => byId[s.id]).map(s => ({...byId[s.id], model:(s.model && !OLD_MODELS.includes(s.model)) ? s.model : byId[s.id].model, enabled:s.enabled}));
   DEFAULT_PROVIDERS.forEach(p => { if (!out.find(o => o.id === p.id)) out.push({...p}); });
   return out;
 }
@@ -142,6 +143,7 @@ function classify(status, body) {
   if (status === 401 || status === 403) return {reason:'clé refusée', wait: 0};
   if (status >= 500) return {reason:'service indisponible', wait: 2*60*1000};
   if (status === 0) return {reason:'erreur réseau', wait: 0};
+  if (status === 404) return {reason:'modèle introuvable (vérifier le nom du modèle dans ⚙)', wait: 0};
   return {reason:'erreur ' + status, wait: 0};
 }
 
