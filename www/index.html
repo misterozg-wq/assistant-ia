@@ -38,7 +38,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>Assistant IA</h1>
+    <select id="profile" style="flex:1;background:var(--panel);color:var(--txt);border:0;font-size:17px;font-weight:600;min-width:0"></select>
     <span id="status"></span>
     <button id="btnNew" title="Nouvelle conversation">＋</button>
     <button id="btnSettings" title="Réglages">⚙</button>
@@ -58,8 +58,9 @@
   <p class="hint">Les IA sont essayées dans l'ordre ci-dessous. Si l'une atteint sa limite (quota, erreur, clé invalide), l'app bascule automatiquement sur la suivante. Les clés restent stockées uniquement sur ce téléphone.</p>
   <div id="provList"></div>
   <div class="prov">
-    <div class="name">Instructions de l'assistant</div>
-    <textarea id="sysPrompt" rows="5"></textarea>
+    <div class="name">Instructions du profil « <span id="profName"></span> »</div>
+    <textarea id="sysPrompt" rows="10"></textarea>
+    <button id="btnPromptReset" style="margin-top:8px">↺ Instructions par défaut</button>
   </div>
   <button id="btnReset">Réinitialiser l'état des quotas</button>
 </div>
@@ -92,8 +93,19 @@ const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^project
 let providers = mergeProviders(load('providers', null));
 let keys      = load('keys', {});
 let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
-let systemPrompt = load('system', DEFAULT_SYSTEM);
-let history   = load('history', []);           // [{role, content, by?}]
+const PROFILES = {
+  juridique:  { name:'⚖️ Droit & assurances', prompt:"Tu es un assistant juridique généraliste, spécialisé en droit français, en assurances et en droits sociaux. Tu réponds en français, de façon claire, structurée et concise.\n\nDomaines : droit civil (contrats, famille, succession, logement, voisinage), droit de la consommation, droit du travail, droit administratif courant ; assurances (Code des assurances, Code de la mutualité, santé, prévoyance, habitation, auto, multirisque professionnelle, emprunteur, responsabilité civile, sinistres, résiliation : lois Chatel, Hamon, Lemoine, résiliation infra-annuelle) ; protection sociale et droits sociaux (Sécurité sociale, CPAM, arrêts de travail, invalidité, accidents du travail, retraite, chômage France Travail, CAF, RSA, APL, MDPH, complémentaire santé solidaire).\n\nMéthode :\n1. Si la situation est floue, pose d'abord 1 à 3 questions précises (statut, dates, montants, type de contrat).\n2. Donne la réponse directe, puis les règles applicables en citant les articles de loi uniquement si tu en es sûr.\n3. Indique les démarches concrètes, délais, pièces à fournir et interlocuteurs (assureur, médiateur, CPAM, inspection du travail, conciliateur, avocat).\n4. Propose si utile un modèle de courrier (réclamation, résiliation, contestation, mise en demeure).\n\nRègles :\n- Distingue clairement ce qui est certain de ce qui dépend du contrat ou de la jurisprudence.\n- Les montants, plafonds et barèmes changent chaque année : signale-le et renvoie vers Légifrance, service-public.fr ou ameli.fr pour vérification.\n- N'invente jamais un article de loi, une jurisprudence ou un chiffre.\n- Pour un litige important ou une procédure judiciaire, recommande de consulter un avocat ou un juriste.\n- Pour les autres sujets, réponds aussi de ton mieux." },
+  smartphone: { name:'📱 Smartphone', prompt:DEFAULT_SYSTEM },
+};
+let prompts   = load('prompts', {});
+let histories = load('histories', null);
+if (!histories) {               // migration ancienne version
+  histories = { smartphone: load('history', []) };
+  const old = load('system', null); if (old && old !== DEFAULT_SYSTEM) prompts.smartphone = old;
+}
+let profile = load('profile', 'juridique'); if (!PROFILES[profile]) profile = 'juridique';
+let systemPrompt = prompts[profile] || PROFILES[profile].prompt;
+let history   = histories[profile] || [];
 
 function mergeProviders(saved) {
   if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
@@ -104,7 +116,7 @@ function mergeProviders(saved) {
 }
 const persist = () => {
   save('providers', providers.map(p => ({id:p.id, model:p.model, enabled:p.enabled})));
-  save('keys', keys); save('cooldown', cooldown); save('system', systemPrompt); save('history', history);
+  save('keys', keys); save('cooldown', cooldown); histories[profile] = history; save('histories', histories); save('prompts', prompts); save('profile', profile);
 };
 
 // ---------- Interface chat ----------
@@ -231,7 +243,7 @@ function renderSettings() {
       <div class="hint">${p.help}${paused ? '<br>⏸ En pause jusqu\'à ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
     list.appendChild(div);
   });
-  $('sysPrompt').value = systemPrompt;
+  $('sysPrompt').value = systemPrompt; $('profName').textContent = PROFILES[profile].name;
 }
 $('provList').addEventListener('click', e => {
   const up = e.target.dataset.up, down = e.target.dataset.down;
@@ -247,7 +259,12 @@ $('provList').addEventListener('change', e => {
   if (t.dataset.model !== undefined) { const v = t.value.trim(); providers[+t.dataset.model].model = badModel(v) ? DEFAULT_PROVIDERS.find(x => x.id === providers[+t.dataset.model].id).model : v; }
   persist();
 });
-$('sysPrompt').addEventListener('change', e => { systemPrompt = e.target.value.trim() || DEFAULT_SYSTEM; persist(); });
+$('sysPrompt').addEventListener('change', e => { const v = e.target.value.trim(); if (v && v !== PROFILES[profile].prompt) prompts[profile] = v; else delete prompts[profile]; systemPrompt = v || PROFILES[profile].prompt; persist(); });
+$('btnPromptReset').onclick = () => { delete prompts[profile]; systemPrompt = PROFILES[profile].prompt; persist(); renderSettings(); };
+const sel = $('profile');
+Object.entries(PROFILES).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v.name; sel.appendChild(o); });
+sel.value = profile;
+sel.onchange = () => { persist(); profile = sel.value; systemPrompt = prompts[profile] || PROFILES[profile].prompt; history = histories[profile] || []; persist(); render(); };
 $('btnSettings').onclick = () => { renderSettings(); $('settings').classList.add('open'); };
 $('btnClose').onclick = () => $('settings').classList.remove('open');
 $('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
