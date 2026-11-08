@@ -67,7 +67,7 @@
 <script>
 // ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
 const DEFAULT_PROVIDERS = [
-  { id:'gemini',     name:'Google Gemini',         url:'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model:'gemini-2.5-flash', enabled:true,
+  { id:'gemini',     name:'Google Gemini',         url:'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model:'gemini-flash-lite-latest', enabled:true,
     help:'Clé gratuite : <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>' },
   { id:'mistral',    name:'Mistral AI',            url:'https://api.mistral.ai/v1/chat/completions', model:'mistral-small-latest', enabled:true,
     help:'Clé gratuite (offre « Experiment ») : <a href="https://console.mistral.ai/api-keys" target="_blank">console.mistral.ai</a>' },
@@ -93,11 +93,12 @@ let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel o
 let systemPrompt = load('system', DEFAULT_SYSTEM);
 let history   = load('history', []);           // [{role, content, by?}]
 
-const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free'];
+const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash'];
+const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 function mergeProviders(saved) {
   if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
   const byId = Object.fromEntries(DEFAULT_PROVIDERS.map(p => [p.id, p]));
-  const out = saved.filter(s => byId[s.id]).map(s => ({...byId[s.id], model:(s.model && !OLD_MODELS.includes(s.model)) ? s.model : byId[s.id].model, enabled:s.enabled}));
+  const out = saved.filter(s => byId[s.id]).map(s => ({...byId[s.id], model:badModel(s.model) ? byId[s.id].model : s.model, enabled:s.enabled}));
   DEFAULT_PROVIDERS.forEach(p => { if (!out.find(o => o.id === p.id)) out.push({...p}); });
   return out;
 }
@@ -184,7 +185,8 @@ async function ask(userText) {
     if (res.ok) { delete cooldown[p.id]; persist(); setStatus(''); return { content:res.content, by:p.name, notes }; }
     const c = classify(res.status, res.body);
     if (c.wait) cooldown[p.id] = Date.now() + c.wait;
-    notes.push(p.name + ' : ' + c.reason + ' → bascule');
+    let detail = ''; try { const j = JSON.parse(res.body); detail = (Array.isArray(j) ? j[0] : j)?.error?.message || ''; } catch {}
+    notes.push(p.name + ' : ' + c.reason + (detail ? ' (' + detail.slice(0,120) + ')' : '') + ' → bascule');
     persist();
   }
   setStatus('');
@@ -225,7 +227,7 @@ function renderSettings() {
         <input type="checkbox" data-en="${i}" ${p.enabled ? 'checked' : ''}>
       </div>
       <input type="password" placeholder="Clé API" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
-      <input type="text" placeholder="Modèle" data-model="${i}" value="${esc(p.model)}">
+      <div class="row"><input type="text" placeholder="Modèle" data-model="${i}" value="${esc(p.model)}"><button data-def="${i}" title="Modèle par défaut" style="margin-top:8px">↺</button></div>
       <div class="hint">${p.help}${paused ? '<br>⏸ En pause jusqu\'à ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
     list.appendChild(div);
   });
@@ -233,6 +235,8 @@ function renderSettings() {
 }
 $('provList').addEventListener('click', e => {
   const up = e.target.dataset.up, down = e.target.dataset.down;
+  const def = e.target.dataset.def;
+  if (def !== undefined) { const d = DEFAULT_PROVIDERS.find(x => x.id === providers[+def].id); providers[+def].model = d.model; persist(); renderSettings(); return; }
   if (up !== undefined && +up > 0) { [providers[+up-1], providers[+up]] = [providers[+up], providers[+up-1]]; persist(); renderSettings(); }
   if (down !== undefined && +down < providers.length-1) { [providers[+down+1], providers[+down]] = [providers[+down], providers[+down+1]]; persist(); renderSettings(); }
 });
@@ -240,7 +244,7 @@ $('provList').addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.en !== undefined) providers[+t.dataset.en].enabled = t.checked;
   if (t.dataset.key) { keys[t.dataset.key] = t.value.trim(); delete cooldown[t.dataset.key]; }
-  if (t.dataset.model !== undefined) providers[+t.dataset.model].model = t.value.trim();
+  if (t.dataset.model !== undefined) { const v = t.value.trim(); providers[+t.dataset.model].model = badModel(v) ? DEFAULT_PROVIDERS.find(x => x.id === providers[+t.dataset.model].id).model : v; }
   persist();
 });
 $('sysPrompt').addEventListener('change', e => { systemPrompt = e.target.value.trim() || DEFAULT_SYSTEM; persist(); });
