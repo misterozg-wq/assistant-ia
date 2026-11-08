@@ -87,14 +87,14 @@ const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iP
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
+const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash'];
+const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 let providers = mergeProviders(load('providers', null));
 let keys      = load('keys', {});
 let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
 let systemPrompt = load('system', DEFAULT_SYSTEM);
 let history   = load('history', []);           // [{role, content, by?}]
 
-const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash'];
-const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 function mergeProviders(saved) {
   if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
   const byId = Object.fromEntries(DEFAULT_PROVIDERS.map(p => [p.id, p]));
