@@ -1,0 +1,10 @@
+{
+  "appId": "fr.gpc.assistantia",
+  "appName": "Assistant IA",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

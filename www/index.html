@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Assistant IA</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --txt:#e8eaef; --mut:#8b93a3; --acc:#4f8cff; --usr:#2b5cd6; --ok:#2fbf71; --ko:#e5534b; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:16px/1.45 system-ui,-apple-system,Roboto,sans-serif; }
+  #app { display:flex; flex-direction:column; height:100%; padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
+  header { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  #status { font-size:12px; color:var(--mut); }
+  button { background:var(--line); color:var(--txt); border:0; border-radius:10px; padding:8px 12px; font-size:15px; }
+  button.primary { background:var(--acc); color:#fff; }
+  #chat { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:88%; padding:10px 12px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; }
+  .user { align-self:flex-end; background:var(--usr); color:#fff; border-bottom-right-radius:4px; }
+  .bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .bot pre { background:#0a0c10; padding:8px; border-radius:8px; overflow-x:auto; white-space:pre; }
+  .tag { display:block; font-size:11px; color:var(--mut); margin-top:6px; }
+  .sys { align-self:center; font-size:12px; color:var(--mut); text-align:center; }
+  footer { display:flex; gap:8px; padding:10px; border-top:1px solid var(--line); background:var(--panel); }
+  textarea { flex:1; resize:none; background:var(--bg); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:10px; font:inherit; max-height:140px; }
+  #settings { position:fixed; inset:0; background:var(--bg); overflow-y:auto; padding:16px; padding-top:calc(16px + env(safe-area-inset-top)); display:none; }
+  #settings.open { display:block; }
+  .prov { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; }
+  .prov .row { display:flex; align-items:center; gap:8px; }
+  .prov .name { flex:1; font-weight:600; }
+  .prov input[type=text], .prov input[type=password], #sysPrompt { width:100%; margin-top:8px; background:var(--bg); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px; font:inherit; font-size:14px; }
+  .hint { font-size:12px; color:var(--mut); margin-top:6px; }
+  .hint a { color:var(--acc); }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
+  .dot.ok { background:var(--ok); } .dot.ko { background:var(--ko); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Assistant IA</h1>
+    <span id="status"></span>
+    <button id="btnNew" title="Nouvelle conversation">＋</button>
+    <button id="btnSettings" title="Réglages">⚙</button>
+  </header>
+  <div id="chat"></div>
+  <footer>
+    <textarea id="input" rows="1" placeholder="Votre question…"></textarea>
+    <button id="btnSend" class="primary">➤</button>
+  </footer>
+</div>
+
+<div id="settings">
+  <div style="display:flex;align-items:center;margin-bottom:12px">
+    <h2 style="flex:1;margin:0;font-size:19px">Réglages</h2>
+    <button id="btnClose" class="primary">OK</button>
+  </div>
+  <p class="hint">Les IA sont essayées dans l'ordre ci-dessous. Si l'une atteint sa limite (quota, erreur, clé invalide), l'app bascule automatiquement sur la suivante. Les clés restent stockées uniquement sur ce téléphone.</p>
+  <div id="provList"></div>
+  <div class="prov">
+    <div class="name">Instructions de l'assistant</div>
+    <textarea id="sysPrompt" rows="5"></textarea>
+  </div>
+  <button id="btnReset">Réinitialiser l'état des quotas</button>
+</div>
+
+<script>
+// ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
+const DEFAULT_PROVIDERS = [
+  { id:'gemini',     name:'Google Gemini',         url:'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model:'gemini-2.5-flash', enabled:true,
+    help:'Clé gratuite : <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>' },
+  { id:'mistral',    name:'Mistral AI',            url:'https://api.mistral.ai/v1/chat/completions', model:'mistral-small-latest', enabled:true,
+    help:'Clé gratuite (offre « Experiment ») : <a href="https://console.mistral.ai/api-keys" target="_blank">console.mistral.ai</a>' },
+  { id:'deepseek_or',name:'DeepSeek (via OpenRouter, gratuit)', url:'https://openrouter.ai/api/v1/chat/completions', model:'deepseek/deepseek-chat-v3-0324:free', enabled:true,
+    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — les modèles se terminant par « :free » sont gratuits.' },
+  { id:'groq',       name:'Groq (Llama, gratuit)', url:'https://api.groq.com/openai/v1/chat/completions', model:'llama-3.3-70b-versatile', enabled:true,
+    help:'Clé gratuite : <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>' },
+  { id:'deepseek',   name:'DeepSeek (officiel, payant)', url:'https://api.deepseek.com/chat/completions', model:'deepseek-chat', enabled:false,
+    help:'API payante (peu chère) : <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com</a>' },
+  { id:'openai',     name:'ChatGPT / OpenAI (payant)', url:'https://api.openai.com/v1/chat/completions', model:'gpt-4o-mini', enabled:false,
+    help:'API payante : <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>' },
+];
+
+const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iPhone) : réglages, applications, dépannage, sécurité, batterie, sauvegarde, transfert de données, réseaux et Wi-Fi. Réponds en français, de façon claire et concise, avec des étapes numérotées quand c'est utile. Pour les autres sujets, réponds aussi de ton mieux.";
+
+// ---------- Stockage ----------
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+let providers = mergeProviders(load('providers', null));
+let keys      = load('keys', {});
+let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
+let systemPrompt = load('system', DEFAULT_SYSTEM);
+let history   = load('history', []);           // [{role, content, by?}]
+
+function mergeProviders(saved) {
+  if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
+  const byId = Object.fromEntries(DEFAULT_PROVIDERS.map(p => [p.id, p]));
+  const out = saved.filter(s => byId[s.id]).map(s => ({...byId[s.id], model:s.model || byId[s.id].model, enabled:s.enabled}));
+  DEFAULT_PROVIDERS.forEach(p => { if (!out.find(o => o.id === p.id)) out.push({...p}); });
+  return out;
+}
+const persist = () => {
+  save('providers', providers.map(p => ({id:p.id, model:p.model, enabled:p.enabled})));
+  save('keys', keys); save('cooldown', cooldown); save('system', systemPrompt); save('history', history);
+};
+
+// ---------- Interface chat ----------
+const $ = id => document.getElementById(id);
+const chat = $('chat'), input = $('input');
+
+function esc(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function md(s){
+  let h = esc(s);
+  h = h.replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, c) => '<pre>' + c + '</pre>');
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  return h;
+}
+function addMsg(role, text, by) {
+  const d = document.createElement('div');
+  if (role === 'sys') { d.className = 'sys'; d.textContent = text; }
+  else {
+    d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    d.innerHTML = role === 'user' ? esc(text) : md(text);
+    if (by) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = by; d.appendChild(t); }
+  }
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
+}
+function render() {
+  chat.innerHTML = '';
+  if (!history.length) addMsg('sys', 'Posez votre question. Pensez à saisir au moins une clé API dans ⚙ Réglages.');
+  history.forEach(m => addMsg(m.role, m.content, m.by));
+}
+function setStatus(t){ $('status').textContent = t || ''; }
+
+// ---------- Appel avec bascule automatique ----------
+function classify(status, body) {
+  const b = (body || '').toLowerCase();
+  if (status === 429 || b.includes('quota') || b.includes('rate limit') || b.includes('resource_exhausted')) return {reason:'limite atteinte', wait: 15*60*1000};
+  if (status === 402 || b.includes('insufficient') || b.includes('credit') || b.includes('balance')) return {reason:'crédit épuisé', wait: 6*3600*1000};
+  if (status === 401 || status === 403) return {reason:'clé refusée', wait: 0};
+  if (status >= 500) return {reason:'service indisponible', wait: 2*60*1000};
+  if (status === 0) return {reason:'erreur réseau', wait: 0};
+  return {reason:'erreur ' + status, wait: 0};
+}
+
+async function callProvider(p, messages) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const r = await fetch(p.url, {
+      method:'POST', signal: ctrl.signal,
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + keys[p.id] },
+      body: JSON.stringify({ model:p.model, messages, temperature:0.7 })
+    });
+    const txt = await r.text();
+    if (!r.ok) return { ok:false, status:r.status, body:txt };
+    const j = JSON.parse(txt);
+    const content = j.choices?.[0]?.message?.content;
+    if (!content) return { ok:false, status:500, body:'réponse vide' };
+    return { ok:true, content };
+  } catch (e) {
+    return { ok:false, status:0, body:String(e) };
+  } finally { clearTimeout(timer); }
+}
+
+async function ask(userText) {
+  const messages = [{role:'system', content:systemPrompt},
+    ...history.slice(-20).map(m => ({role:m.role, content:m.content})),
+    {role:'user', content:userText}];
+  const now = Date.now();
+  const candidates = providers.filter(p => p.enabled && keys[p.id]);
+  if (!candidates.length) return { error:'Aucune IA configurée. Ouvrez ⚙ Réglages et saisissez au moins une clé API.' };
+
+  // D'abord ceux qui ne sont pas en pause, puis ceux en pause en dernier recours
+  const ordered = [...candidates.filter(p => !(cooldown[p.id] > now)), ...candidates.filter(p => cooldown[p.id] > now)];
+  const notes = [];
+  for (const p of ordered) {
+    setStatus(p.name + '…');
+    const res = await callProvider(p, messages);
+    if (res.ok) { delete cooldown[p.id]; persist(); setStatus(''); return { content:res.content, by:p.name, notes }; }
+    const c = classify(res.status, res.body);
+    if (c.wait) cooldown[p.id] = Date.now() + c.wait;
+    notes.push(p.name + ' : ' + c.reason + ' → bascule');
+    persist();
+  }
+  setStatus('');
+  return { error:'Toutes les IA ont échoué :\n' + notes.join('\n'), notes };
+}
+
+let busy = false;
+async function send() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  busy = true; $('btnSend').disabled = true;
+  input.value = ''; autosize();
+  addMsg('user', text);
+  const wait = addMsg('sys', '…');
+  const res = await ask(text);
+  wait.remove();
+  if (res.notes) res.notes.forEach(n => { if (!res.error) addMsg('sys', n); });
+  if (res.error) { addMsg('sys', res.error); }
+  else {
+    history.push({role:'user', content:text}, {role:'assistant', content:res.content, by:res.by});
+    persist(); addMsg('assistant', res.content, res.by);
+  }
+  busy = false; $('btnSend').disabled = false;
+}
+
+// ---------- Réglages ----------
+function renderSettings() {
+  const list = $('provList'); list.innerHTML = '';
+  const now = Date.now();
+  providers.forEach((p, i) => {
+    const paused = cooldown[p.id] > now;
+    const div = document.createElement('div'); div.className = 'prov';
+    div.innerHTML = `
+      <div class="row">
+        <span class="dot ${keys[p.id] ? (paused ? 'ko' : 'ok') : ''}"></span>
+        <span class="name">${i+1}. ${p.name}</span>
+        <button data-up="${i}">↑</button><button data-down="${i}">↓</button>
+        <input type="checkbox" data-en="${i}" ${p.enabled ? 'checked' : ''}>
+      </div>
+      <input type="password" placeholder="Clé API" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
+      <input type="text" placeholder="Modèle" data-model="${i}" value="${esc(p.model)}">
+      <div class="hint">${p.help}${paused ? '<br>⏸ En pause jusqu\'à ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
+    list.appendChild(div);
+  });
+  $('sysPrompt').value = systemPrompt;
+}
+$('provList').addEventListener('click', e => {
+  const up = e.target.dataset.up, down = e.target.dataset.down;
+  if (up !== undefined && +up > 0) { [providers[+up-1], providers[+up]] = [providers[+up], providers[+up-1]]; persist(); renderSettings(); }
+  if (down !== undefined && +down < providers.length-1) { [providers[+down+1], providers[+down]] = [providers[+down], providers[+down+1]]; persist(); renderSettings(); }
+});
+$('provList').addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.en !== undefined) providers[+t.dataset.en].enabled = t.checked;
+  if (t.dataset.key) { keys[t.dataset.key] = t.value.trim(); delete cooldown[t.dataset.key]; }
+  if (t.dataset.model !== undefined) providers[+t.dataset.model].model = t.value.trim();
+  persist();
+});
+$('sysPrompt').addEventListener('change', e => { systemPrompt = e.target.value.trim() || DEFAULT_SYSTEM; persist(); });
+$('btnSettings').onclick = () => { renderSettings(); $('settings').classList.add('open'); };
+$('btnClose').onclick = () => $('settings').classList.remove('open');
+$('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
+$('btnNew').onclick = () => { history = []; persist(); render(); };
+
+// ---------- Saisie ----------
+function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 700) { e.preventDefault(); send(); } });
+$('btnSend').onclick = send;
+
+render();
+</script>
+</body>
+</html>

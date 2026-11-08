@@ -1,0 +1,17 @@
+{
+  "name": "assistant-ia",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "android:init": "npx cap add android",
+    "android:sync": "npx cap sync android",
+    "apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}
