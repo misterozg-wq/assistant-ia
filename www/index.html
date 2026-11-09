@@ -39,6 +39,8 @@
   .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
   .mem { display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; }
   .mem span { flex:1; } .mem small { color:var(--mut); }
+  #btnMic.on { background:var(--ko); color:#fff; }
+  .say { background:none; padding:0 0 0 8px; font-size:13px; color:var(--mut); }
   .dot.ok { background:var(--ok); } .dot.ko { background:var(--ko); }
 </style>
 </head>
@@ -47,12 +49,14 @@
   <header>
     <select id="profile" style="flex:1;background:var(--panel);color:var(--txt);border:0;font-size:17px;font-weight:600;min-width:0"></select>
     <span id="status"></span>
+    <button id="btnVoice" title="Lecture automatique des réponses">🔇</button>
     <button id="btnNew" title="Nouvelle conversation">＋</button>
     <button id="btnSettings" title="Réglages">⚙</button>
   </header>
   <div id="chat"></div>
   <footer>
     <textarea id="input" rows="1" placeholder="Votre question…"></textarea>
+    <button id="btnMic" title="Parler">🎤</button>
     <button id="btnSend" class="primary">➤</button>
   </footer>
 </div>
@@ -180,7 +184,9 @@ function addMsg(role, text, by) {
   else {
     d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
     d.innerHTML = role === 'user' ? esc(text) : md(text);
-    if (by) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = by; d.appendChild(t); }
+    if (by) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = by;
+      if (role !== 'user') { const b = document.createElement('button'); b.className = 'say'; b.textContent = '🔊 Écouter'; b.onclick = () => speak(text); t.appendChild(b); }
+      d.appendChild(t); }
   }
   chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
 }
@@ -264,6 +270,7 @@ async function send() {
     const m = extractMemory(res.content);
     history.push({role:'user', content:text}, {role:'assistant', content:m.clean, by:res.by});
     persist(); addMsg('assistant', m.clean, res.by);
+    if (autoSpeak) speak(m.clean);
     m.added.forEach(t => addMsg('sys', '🧠 Mémorisé : ' + t));
     m.removed.forEach(t => addMsg('sys', '🧠 Oublié : ' + t));
   }
@@ -328,6 +335,58 @@ $('memAdd').onclick = () => { if (memAddItem($('memNew').value)) { $('memNew').v
 $('memClear').onclick = () => { if (memory.length && window.confirm('Effacer toute la mémoire ?')) { memory = []; persist(); renderMemory(); } };
 $('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
 $('btnNew').onclick = () => { history = []; persist(); render(); };
+
+// ---------- Voix ----------
+const Plug = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.Capacitor.Plugins : null;
+const NativeSR = Plug && Plug.SpeechRecognition, NativeTTS = Plug && Plug.TextToSpeech;
+const WebSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let autoSpeak = load('autoSpeak', false);
+function plain(t) { return t.replace(/```[\s\S]*?```/g, ' (bloc de code) ').replace(/[*_#`>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/\n+/g, '. '); }
+async function stopSpeak() { try { if (NativeTTS) await NativeTTS.stop(); else if (window.speechSynthesis) speechSynthesis.cancel(); } catch {} }
+async function speak(text) {
+  await stopSpeak(); const t = plain(text);
+  try {
+    if (NativeTTS) { await NativeTTS.speak({ text: t, lang: 'fr-FR', rate: 1.0, pitch: 1.0, volume: 1.0 }); return; }
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR';
+      const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.startsWith('fr')); if (v) u.voice = v;
+      speechSynthesis.speak(u); return;
+    }
+    addMsg('sys', 'La lecture vocale n\'est pas disponible sur cet appareil.');
+  } catch (e) { addMsg('sys', 'Lecture vocale impossible : ' + (e.message || e)); }
+}
+function setVoiceBtn() { $('btnVoice').textContent = autoSpeak ? '🔊' : '🔇'; }
+$('btnVoice').onclick = () => { autoSpeak = !autoSpeak; save('autoSpeak', autoSpeak); setVoiceBtn(); if (!autoSpeak) stopSpeak(); addMsg('sys', autoSpeak ? 'Lecture automatique des réponses activée.' : 'Lecture automatique désactivée.'); };
+setVoiceBtn();
+
+let listening = false, webRec = null;
+function micState(on) { listening = on; $('btnMic').classList.toggle('on', on); }
+async function listen() {
+  if (listening) { try { if (webRec) webRec.stop(); if (NativeSR) await NativeSR.stop(); } catch {} micState(false); return; }
+  await stopSpeak();
+  try {
+    if (NativeSR) {
+      const av = await NativeSR.available(); if (!av.available) throw new Error('reconnaissance vocale indisponible');
+      const perm = await NativeSR.requestPermissions(); if (perm.speechRecognition && perm.speechRecognition !== 'granted') throw new Error('autorisation du micro refusée');
+      micState(true);
+      const res = await NativeSR.start({ language: 'fr-FR', maxResults: 1, prompt: 'Parlez…', partialResults: false, popup: true });
+      micState(false);
+      const txt = res && res.matches && res.matches[0];
+      if (txt) { input.value = txt; autosize(); send(); }
+      return;
+    }
+    if (WebSR) {
+      webRec = new WebSR(); webRec.lang = 'fr-FR'; webRec.interimResults = true; webRec.maxAlternatives = 1;
+      let finalTxt = '';
+      webRec.onresult = e => { let t = ''; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) finalTxt = t; } input.value = t; autosize(); };
+      webRec.onerror = e => { micState(false); if (e.error !== 'no-speech' && e.error !== 'aborted') addMsg('sys', 'Micro : ' + e.error); };
+      webRec.onend = () => { micState(false); if (finalTxt.trim()) send(); };
+      micState(true); webRec.start(); return;
+    }
+    addMsg('sys', 'La reconnaissance vocale n\'est pas disponible dans ce navigateur. Utilisez le micro du clavier.');
+  } catch (e) { micState(false); addMsg('sys', 'Micro : ' + (e.message || e)); }
+}
+$('btnMic').onclick = listen;
 
 // ---------- Saisie ----------
 function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
