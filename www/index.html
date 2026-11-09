@@ -49,58 +49,62 @@
   <header>
     <select id="profile" style="flex:1;background:var(--panel);color:var(--txt);border:0;font-size:17px;font-weight:600;min-width:0"></select>
     <span id="status"></span>
-    <button id="btnVoice" title="Lecture automatique des réponses">🔇</button>
-    <button id="btnNew" title="Nouvelle conversation">＋</button>
-    <button id="btnSettings" title="Réglages">⚙</button>
+    <button id="btnVoice" data-i18n-title="t_voice">🔇</button>
+    <button id="btnNew" data-i18n-title="t_new">＋</button>
+    <button id="btnSettings" data-i18n-title="t_settings">⚙</button>
   </header>
   <div id="chat"></div>
   <footer>
-    <textarea id="input" rows="1" placeholder="Votre question…"></textarea>
-    <button id="btnMic" title="Parler">🎤</button>
+    <textarea id="input" rows="1" data-i18n-ph="ph"></textarea>
+    <button id="btnMic" data-i18n-title="t_mic">🎤</button>
     <button id="btnSend" class="primary">➤</button>
   </footer>
 </div>
 
 <div id="settings">
   <div style="display:flex;align-items:center;margin-bottom:12px">
-    <h2 style="flex:1;margin:0;font-size:19px">Réglages</h2>
+    <h2 style="flex:1;margin:0;font-size:19px" data-i18n="settings"></h2>
     <button id="btnClose" class="primary">OK</button>
   </div>
-  <p class="hint">Les IA sont essayées dans l'ordre ci-dessous. Si l'une atteint sa limite (quota, erreur, clé invalide), l'app bascule automatiquement sur la suivante. Les clés restent stockées uniquement sur ce téléphone.</p>
+  <div class="prov">
+    <div class="name" data-i18n="lang_t"></div>
+    <select id="langSel" style="width:100%;margin-top:8px;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:15px"></select>
+  </div>
+  <p class="hint" data-i18n="set_hint"></p>
   <div id="provList"></div>
   <div class="prov">
-    <div class="name">Instructions du profil « <span id="profName"></span> »</div>
+    <div class="name" id="instrTitle"></div>
     <textarea id="sysPrompt" rows="10"></textarea>
-    <button id="btnPromptReset" style="margin-top:8px">↺ Instructions par défaut</button>
+    <button id="btnPromptReset" style="margin-top:8px" data-i18n="instr_reset"></button>
   </div>
   <div class="prov">
-    <div class="name">🔊 Voix de lecture</div>
-    <div class="row"><select id="ttsVoice" style="flex:1;margin-top:8px;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:14px"></select><button id="ttsTest" style="margin-top:8px">▶ Tester</button></div>
-    <div class="hint">Les voix « Naturelle » sont plus réalistes (connexion internet requise). En cas de problème, la voix du téléphone prend le relais.</div>
+    <div class="name" data-i18n="voice_t"></div>
+    <div class="row"><select id="ttsVoice" style="flex:1;margin-top:8px;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:14px"></select><button id="ttsTest" style="margin-top:8px" data-i18n="test"></button></div>
+    <div class="hint" data-i18n="voice_hint"></div>
   </div>
   <div class="prov">
-    <div class="name">🧠 Mémoire de l'assistant</div>
-    <div class="hint">Informations et tâches retenues, communes aux deux profils, stockées uniquement sur cet appareil. L'assistant les ajoute tout seul ; vous pouvez aussi lui dire « retiens que… » ou « oublie… ».</div>
+    <div class="name" data-i18n="mem_t"></div>
+    <div class="hint" data-i18n="mem_hint"></div>
     <div id="memList"></div>
-    <div class="row"><input type="text" id="memNew" placeholder="Ajouter une information…"><button id="memAdd" style="margin-top:8px">＋</button></div>
-    <button id="memClear" style="margin-top:8px">Tout effacer</button>
+    <div class="row"><input type="text" id="memNew" data-i18n-ph="mem_ph"><button id="memAdd" style="margin-top:8px">＋</button></div>
+    <button id="memClear" style="margin-top:8px" data-i18n="mem_clear"></button>
   </div>
-  <button id="btnReset">Réinitialiser l'état des quotas</button>
+  <button id="btnReset" data-i18n="quota_reset"></button>
 </div>
 
 <script>
 // ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
 const DEFAULT_PROVIDERS = [
-  { id:'pollinations', name:'Pollinations (intégré)', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true, anonKey:'pk_9LSWbR1pdhYD7S84',
-    help:'Clé de l\'app intégrée : rien à saisir. Votre propre clé (facultative) : <a href="https://enter.pollinations.ai" target="_blank">enter.pollinations.ai</a>' },
-  { id:'deepseek_or', name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
-    help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit.' },
-  { id:'llm7', name:'LLM7.io (gratuit, sans clé)', url:'https://api.llm7.io/v1/chat/completions', model:'default', enabled:true, noKey:true, anonKey:'unused',
-    help:'Fonctionne sans clé. Clé gratuite facultative (limites plus hautes) : <a href="https://token.llm7.io" target="_blank">token.llm7.io</a>' },
-  { id:'cohere', name:'Cohere (gratuit, 1000 messages/mois)', url:'https://api.cohere.ai/compatibility/v1/chat/completions', model:'command-a-03-2025', enabled:true,
-    help:'Clé d\'essai gratuite, sans carte : <a href="https://dashboard.cohere.com/api-keys" target="_blank">dashboard.cohere.com</a> — usage non commercial.' },
-  { id:'nvidia', name:'NVIDIA NIM (gratuit)', url:'https://integrate.api.nvidia.com/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
-    help:'Clé gratuite (vérification par SMS) : <a href="https://build.nvidia.com" target="_blank">build.nvidia.com</a>' },
+  { id:'pollinations', name:'Pollinations', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true, anonKey:'pk_9LSWbR1pdhYD7S84',
+    help:'h_poll', link:'https://enter.pollinations.ai' },
+  { id:'deepseek_or', name:'OpenRouter', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
+    help:'h_or', link:'https://openrouter.ai/keys' },
+  { id:'llm7', name:'LLM7.io', url:'https://api.llm7.io/v1/chat/completions', model:'default', enabled:true, noKey:true, anonKey:'unused',
+    help:'h_llm7', link:'https://token.llm7.io' },
+  { id:'cohere', name:'Cohere', url:'https://api.cohere.ai/compatibility/v1/chat/completions', model:'command-a-03-2025', enabled:true,
+    help:'h_coh', link:'https://dashboard.cohere.com/api-keys' },
+  { id:'nvidia', name:'NVIDIA NIM', url:'https://integrate.api.nvidia.com/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
+    help:'h_nv', link:'https://build.nvidia.com' },
 ];
 
 const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iPhone) : réglages, applications, dépannage, sécurité, batterie, sauvegarde, transfert de données, réseaux et Wi-Fi. Réponds en français, de façon claire et concise, avec des étapes numérotées quand c'est utile. Pour les autres sujets, réponds aussi de ton mieux.";
@@ -108,6 +112,20 @@ const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iP
 // ---------- Stockage ----------
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+// ---------- Langues ----------
+const I18N = {"fr": {"name": "Français", "bcp": "fr-FR", "ask": "Posez votre question.", "ph": "Votre question…", "t_voice": "Lecture automatique des réponses", "t_new": "Nouvelle conversation", "t_settings": "Réglages", "t_mic": "Parler", "settings": "Réglages", "set_hint": "Les IA sont essayées dans l'ordre ci-dessous. Si l'une atteint sa limite (quota, erreur, clé invalide), l'app bascule automatiquement sur la suivante. Les clés restent stockées uniquement sur cet appareil.", "instr": "Instructions du profil « {p} »", "instr_reset": "↺ Instructions par défaut", "voice_t": "🔊 Voix de lecture", "test": "▶ Tester", "voice_hint": "Les voix « Naturelle » sont plus réalistes (connexion internet requise). En cas de problème, la voix du téléphone prend le relais.", "mem_t": "🧠 Mémoire de l'assistant", "mem_hint": "Informations et tâches retenues, communes à tous les profils, stockées uniquement sur cet appareil. L'assistant les ajoute tout seul ; vous pouvez aussi lui dire « retiens que… » ou « oublie… ».", "mem_ph": "Ajouter une information…", "mem_clear": "Tout effacer", "mem_empty": "Mémoire vide.", "mem_confirm": "Effacer toute la mémoire ?", "quota_reset": "Réinitialiser l'état des quotas", "lang_t": "🌍 Langue", "key": "Clé API", "key_opt": "Clé API (facultative)", "model": "Modèle", "model_def": "Modèle par défaut", "paused": "En pause jusqu’à", "r_limit": "limite atteinte", "r_credit": "crédit épuisé", "r_key": "clé refusée", "r_down": "service indisponible", "r_net": "erreur réseau", "r_404": "modèle introuvable", "r_err": "erreur", "r_empty": "réponse vide", "switch": "bascule", "no_ai": "Aucune IA activée. Ouvrez ⚙ Réglages.", "all_fail": "Toutes les IA ont échoué :", "memo": "🧠 Mémorisé :", "forgot": "🧠 Oublié :", "auto_on": "Lecture automatique des réponses activée.", "auto_off": "Lecture automatique désactivée.", "online_fail": "Voix naturelle indisponible pour le moment : voix du téléphone utilisée.", "tts_fail": "Lecture vocale impossible :", "tts_sample": "Bonjour, je suis votre assistant. Voici à quoi ressemble ma voix.", "listen": "🔊 Écouter", "sr_unavail": "reconnaissance vocale indisponible : installez ou activez l'application Google sur le téléphone", "mic_denied": "autorisation du micro refusée (Paramètres › Applications › Assistant IA › Autorisations)", "mic_br_denied": "autorisation refusée par le navigateur", "sr_none": "Reconnaissance vocale non disponible ici. Utilisez le micro 🎤 de votre clavier.", "mic": "Micro :", "speak_prompt": "Parlez…", "v_f": "femme", "v_m": "homme", "v_n": "neutre", "v_deep": "homme, grave", "v_dev": "Voix du téléphone (hors ligne)", "natural": "Naturelle", "p_gen": "🌐 Généraliste", "p_law": "⚖️ Droit & assurances", "p_phone": "📱 Smartphone", "h_poll": "Clé de l'app intégrée : rien à saisir. Votre propre clé (facultative) : {l}", "h_or": "Clé gratuite : {l} — « openrouter/free » choisit automatiquement un modèle gratuit.", "h_llm7": "Fonctionne sans clé. Clé gratuite facultative (limites plus hautes) : {l}", "h_coh": "Clé d'essai gratuite, sans carte : {l} — usage non commercial.", "h_nv": "Clé gratuite (vérification par SMS) : {l}"}, "en": {"name": "English", "bcp": "en-US", "ask": "Ask your question.", "ph": "Your question…", "t_voice": "Read answers aloud", "t_new": "New conversation", "t_settings": "Settings", "t_mic": "Speak", "settings": "Settings", "set_hint": "The AIs are tried in the order below. If one reaches its limit (quota, error, invalid key), the app automatically switches to the next one. Keys are stored only on this device.", "instr": "Instructions for profile “{p}”", "instr_reset": "↺ Default instructions", "voice_t": "🔊 Reading voice", "test": "▶ Test", "voice_hint": "“Natural” voices are more realistic (internet connection required). If there is a problem, the phone voice takes over.", "mem_t": "🧠 Assistant's memory", "mem_hint": "Facts and tasks remembered, shared by all profiles, stored only on this device. The assistant adds them by itself; you can also say “remember that…” or “forget…”.", "mem_ph": "Add a piece of information…", "mem_clear": "Clear all", "mem_empty": "Memory is empty.", "mem_confirm": "Clear the whole memory?", "quota_reset": "Reset quota status", "lang_t": "🌍 Language", "key": "API key", "key_opt": "API key (optional)", "model": "Model", "model_def": "Default model", "paused": "Paused until", "r_limit": "limit reached", "r_credit": "credit exhausted", "r_key": "key rejected", "r_down": "service unavailable", "r_net": "network error", "r_404": "model not found", "r_err": "error", "r_empty": "empty answer", "switch": "switching", "no_ai": "No AI enabled. Open ⚙ Settings.", "all_fail": "All AIs failed:", "memo": "🧠 Remembered:", "forgot": "🧠 Forgotten:", "auto_on": "Answers will be read aloud.", "auto_off": "Read-aloud turned off.", "online_fail": "Natural voice unavailable for now: using the phone voice.", "tts_fail": "Speech output failed:", "tts_sample": "Hello, I am your assistant. This is what my voice sounds like.", "listen": "🔊 Listen", "sr_unavail": "speech recognition unavailable: install or enable the Google app on the phone", "mic_denied": "microphone permission denied (Settings › Apps › Assistant IA › Permissions)", "mic_br_denied": "permission denied by the browser", "sr_none": "Speech recognition is not available here. Use your keyboard microphone 🎤.", "mic": "Microphone:", "speak_prompt": "Speak…", "v_f": "female", "v_m": "male", "v_n": "neutral", "v_deep": "male, deep", "v_dev": "Phone voice (offline)", "natural": "Natural", "p_gen": "🌐 General", "p_law": "⚖️ Law & insurance", "p_phone": "📱 Smartphone", "h_poll": "Built-in app key: nothing to enter. Your own key (optional): {l}", "h_or": "Free key: {l} — “openrouter/free” automatically picks a free model.", "h_llm7": "Works without a key. Optional free key (higher limits): {l}", "h_coh": "Free trial key, no card: {l} — non-commercial use.", "h_nv": "Free key (SMS verification): {l}"}, "es": {"name": "Español", "bcp": "es-ES", "ask": "Haga su pregunta.", "ph": "Su pregunta…", "t_voice": "Leer las respuestas en voz alta", "t_new": "Nueva conversación", "t_settings": "Ajustes", "t_mic": "Hablar", "settings": "Ajustes", "set_hint": "Las IA se prueban en el orden siguiente. Si una alcanza su límite (cuota, error, clave no válida), la app pasa automáticamente a la siguiente. Las claves se guardan solo en este dispositivo.", "instr": "Instrucciones del perfil «{p}»", "instr_reset": "↺ Instrucciones por defecto", "voice_t": "🔊 Voz de lectura", "test": "▶ Probar", "voice_hint": "Las voces «Natural» son más realistas (requieren internet). Si hay un problema, se usa la voz del teléfono.", "mem_t": "🧠 Memoria del asistente", "mem_hint": "Datos y tareas recordados, comunes a todos los perfiles, guardados solo en este dispositivo. El asistente los añade solo; también puede decirle «recuerda que…» u «olvida…».", "mem_ph": "Añadir una información…", "mem_clear": "Borrar todo", "mem_empty": "Memoria vacía.", "mem_confirm": "¿Borrar toda la memoria?", "quota_reset": "Restablecer el estado de las cuotas", "lang_t": "🌍 Idioma", "key": "Clave API", "key_opt": "Clave API (opcional)", "model": "Modelo", "model_def": "Modelo por defecto", "paused": "En pausa hasta", "r_limit": "límite alcanzado", "r_credit": "crédito agotado", "r_key": "clave rechazada", "r_down": "servicio no disponible", "r_net": "error de red", "r_404": "modelo no encontrado", "r_err": "error", "r_empty": "respuesta vacía", "switch": "cambio", "no_ai": "Ninguna IA activada. Abra ⚙ Ajustes.", "all_fail": "Todas las IA han fallado:", "memo": "🧠 Recordado:", "forgot": "🧠 Olvidado:", "auto_on": "Lectura automática activada.", "auto_off": "Lectura automática desactivada.", "online_fail": "Voz natural no disponible por ahora: se usa la voz del teléfono.", "tts_fail": "Lectura de voz imposible:", "tts_sample": "Hola, soy su asistente. Así suena mi voz.", "listen": "🔊 Escuchar", "sr_unavail": "reconocimiento de voz no disponible: instale o active la app de Google en el teléfono", "mic_denied": "permiso de micrófono denegado (Ajustes › Aplicaciones › Assistant IA › Permisos)", "mic_br_denied": "permiso denegado por el navegador", "sr_none": "Reconocimiento de voz no disponible aquí. Use el micrófono 🎤 del teclado.", "mic": "Micrófono:", "speak_prompt": "Hable…", "v_f": "mujer", "v_m": "hombre", "v_n": "neutra", "v_deep": "hombre, grave", "v_dev": "Voz del teléfono (sin conexión)", "natural": "Natural", "p_gen": "🌐 General", "p_law": "⚖️ Derecho y seguros", "p_phone": "📱 Smartphone", "h_poll": "Clave de la app integrada: nada que introducir. Su propia clave (opcional): {l}", "h_or": "Clave gratuita: {l} — «openrouter/free» elige automáticamente un modelo gratuito.", "h_llm7": "Funciona sin clave. Clave gratuita opcional (límites más altos): {l}", "h_coh": "Clave de prueba gratuita, sin tarjeta: {l} — uso no comercial.", "h_nv": "Clave gratuita (verificación por SMS): {l}"}, "de": {"name": "Deutsch", "bcp": "de-DE", "ask": "Stellen Sie Ihre Frage.", "ph": "Ihre Frage…", "t_voice": "Antworten vorlesen", "t_new": "Neues Gespräch", "t_settings": "Einstellungen", "t_mic": "Sprechen", "settings": "Einstellungen", "set_hint": "Die KIs werden in der folgenden Reihenfolge versucht. Erreicht eine ihr Limit (Kontingent, Fehler, ungültiger Schlüssel), wechselt die App automatisch zur nächsten. Schlüssel werden nur auf diesem Gerät gespeichert.", "instr": "Anweisungen für das Profil „{p}“", "instr_reset": "↺ Standardanweisungen", "voice_t": "🔊 Vorlesestimme", "test": "▶ Testen", "voice_hint": "„Natürliche“ Stimmen klingen realistischer (Internet erforderlich). Bei Problemen übernimmt die Telefonstimme.", "mem_t": "🧠 Gedächtnis des Assistenten", "mem_hint": "Gespeicherte Infos und Aufgaben, für alle Profile, nur auf diesem Gerät. Der Assistent fügt sie selbst hinzu; Sie können auch „merke dir…“ oder „vergiss…“ sagen.", "mem_ph": "Information hinzufügen…", "mem_clear": "Alles löschen", "mem_empty": "Gedächtnis ist leer.", "mem_confirm": "Das gesamte Gedächtnis löschen?", "quota_reset": "Kontingentstatus zurücksetzen", "lang_t": "🌍 Sprache", "key": "API-Schlüssel", "key_opt": "API-Schlüssel (optional)", "model": "Modell", "model_def": "Standardmodell", "paused": "Pausiert bis", "r_limit": "Limit erreicht", "r_credit": "Guthaben aufgebraucht", "r_key": "Schlüssel abgelehnt", "r_down": "Dienst nicht verfügbar", "r_net": "Netzwerkfehler", "r_404": "Modell nicht gefunden", "r_err": "Fehler", "r_empty": "leere Antwort", "switch": "Wechsel", "no_ai": "Keine KI aktiviert. Öffnen Sie ⚙ Einstellungen.", "all_fail": "Alle KIs sind fehlgeschlagen:", "memo": "🧠 Gemerkt:", "forgot": "🧠 Vergessen:", "auto_on": "Automatisches Vorlesen aktiviert.", "auto_off": "Automatisches Vorlesen deaktiviert.", "online_fail": "Natürliche Stimme derzeit nicht verfügbar: Telefonstimme wird verwendet.", "tts_fail": "Vorlesen nicht möglich:", "tts_sample": "Hallo, ich bin Ihr Assistent. So klingt meine Stimme.", "listen": "🔊 Anhören", "sr_unavail": "Spracherkennung nicht verfügbar: Installieren oder aktivieren Sie die Google-App", "mic_denied": "Mikrofonberechtigung verweigert (Einstellungen › Apps › Assistant IA › Berechtigungen)", "mic_br_denied": "vom Browser verweigert", "sr_none": "Spracherkennung hier nicht verfügbar. Nutzen Sie das Mikrofon 🎤 Ihrer Tastatur.", "mic": "Mikrofon:", "speak_prompt": "Sprechen Sie…", "v_f": "Frau", "v_m": "Mann", "v_n": "neutral", "v_deep": "Mann, tief", "v_dev": "Telefonstimme (offline)", "natural": "Natürlich", "p_gen": "🌐 Allgemein", "p_law": "⚖️ Recht & Versicherung", "p_phone": "📱 Smartphone", "h_poll": "Integrierter App-Schlüssel: nichts einzugeben. Eigener Schlüssel (optional): {l}", "h_or": "Kostenloser Schlüssel: {l} — „openrouter/free“ wählt automatisch ein kostenloses Modell.", "h_llm7": "Funktioniert ohne Schlüssel. Optionaler kostenloser Schlüssel (höhere Limits): {l}", "h_coh": "Kostenloser Testschlüssel, ohne Karte: {l} — nicht kommerziell.", "h_nv": "Kostenloser Schlüssel (SMS-Bestätigung): {l}"}, "it": {"name": "Italiano", "bcp": "it-IT", "ask": "Fai la tua domanda.", "ph": "La tua domanda…", "t_voice": "Leggi le risposte ad alta voce", "t_new": "Nuova conversazione", "t_settings": "Impostazioni", "t_mic": "Parla", "settings": "Impostazioni", "set_hint": "Le IA vengono provate nell'ordine seguente. Se una raggiunge il limite (quota, errore, chiave non valida), l'app passa automaticamente alla successiva. Le chiavi restano solo su questo dispositivo.", "instr": "Istruzioni del profilo «{p}»", "instr_reset": "↺ Istruzioni predefinite", "voice_t": "🔊 Voce di lettura", "test": "▶ Prova", "voice_hint": "Le voci «Naturale» sono più realistiche (serve internet). In caso di problemi, subentra la voce del telefono.", "mem_t": "🧠 Memoria dell'assistente", "mem_hint": "Informazioni e attività ricordate, comuni a tutti i profili, salvate solo su questo dispositivo. L'assistente le aggiunge da solo; puoi anche dire «ricorda che…» o «dimentica…».", "mem_ph": "Aggiungi un'informazione…", "mem_clear": "Cancella tutto", "mem_empty": "Memoria vuota.", "mem_confirm": "Cancellare tutta la memoria?", "quota_reset": "Reimposta lo stato delle quote", "lang_t": "🌍 Lingua", "key": "Chiave API", "key_opt": "Chiave API (facoltativa)", "model": "Modello", "model_def": "Modello predefinito", "paused": "In pausa fino alle", "r_limit": "limite raggiunto", "r_credit": "credito esaurito", "r_key": "chiave rifiutata", "r_down": "servizio non disponibile", "r_net": "errore di rete", "r_404": "modello non trovato", "r_err": "errore", "r_empty": "risposta vuota", "switch": "passaggio", "no_ai": "Nessuna IA attiva. Apri ⚙ Impostazioni.", "all_fail": "Tutte le IA hanno fallito:", "memo": "🧠 Memorizzato:", "forgot": "🧠 Dimenticato:", "auto_on": "Lettura automatica attivata.", "auto_off": "Lettura automatica disattivata.", "online_fail": "Voce naturale non disponibile al momento: uso la voce del telefono.", "tts_fail": "Lettura vocale impossibile:", "tts_sample": "Ciao, sono il tuo assistente. Ecco come suona la mia voce.", "listen": "🔊 Ascolta", "sr_unavail": "riconoscimento vocale non disponibile: installa o attiva l'app Google", "mic_denied": "permesso microfono negato (Impostazioni › App › Assistant IA › Autorizzazioni)", "mic_br_denied": "permesso negato dal browser", "sr_none": "Riconoscimento vocale non disponibile qui. Usa il microfono 🎤 della tastiera.", "mic": "Microfono:", "speak_prompt": "Parla…", "v_f": "donna", "v_m": "uomo", "v_n": "neutra", "v_deep": "uomo, grave", "v_dev": "Voce del telefono (offline)", "natural": "Naturale", "p_gen": "🌐 Generale", "p_law": "⚖️ Diritto e assicurazioni", "p_phone": "📱 Smartphone", "h_poll": "Chiave dell'app integrata: niente da inserire. La tua chiave (facoltativa): {l}", "h_or": "Chiave gratuita: {l} — «openrouter/free» sceglie automaticamente un modello gratuito.", "h_llm7": "Funziona senza chiave. Chiave gratuita facoltativa (limiti più alti): {l}", "h_coh": "Chiave di prova gratuita, senza carta: {l} — uso non commerciale.", "h_nv": "Chiave gratuita (verifica via SMS): {l}"}, "pt": {"name": "Português", "bcp": "pt-PT", "ask": "Faça a sua pergunta.", "ph": "A sua pergunta…", "t_voice": "Ler as respostas em voz alta", "t_new": "Nova conversa", "t_settings": "Definições", "t_mic": "Falar", "settings": "Definições", "set_hint": "As IA são tentadas pela ordem abaixo. Se uma atingir o limite (quota, erro, chave inválida), a app passa automaticamente para a seguinte. As chaves ficam guardadas apenas neste dispositivo.", "instr": "Instruções do perfil «{p}»", "instr_reset": "↺ Instruções predefinidas", "voice_t": "🔊 Voz de leitura", "test": "▶ Testar", "voice_hint": "As vozes «Natural» são mais realistas (requer internet). Em caso de problema, é usada a voz do telefone.", "mem_t": "🧠 Memória do assistente", "mem_hint": "Informações e tarefas guardadas, comuns a todos os perfis, apenas neste dispositivo. O assistente adiciona-as sozinho; também pode dizer «lembra-te que…» ou «esquece…».", "mem_ph": "Adicionar uma informação…", "mem_clear": "Apagar tudo", "mem_empty": "Memória vazia.", "mem_confirm": "Apagar toda a memória?", "quota_reset": "Repor o estado das quotas", "lang_t": "🌍 Idioma", "key": "Chave API", "key_opt": "Chave API (opcional)", "model": "Modelo", "model_def": "Modelo predefinido", "paused": "Em pausa até", "r_limit": "limite atingido", "r_credit": "crédito esgotado", "r_key": "chave recusada", "r_down": "serviço indisponível", "r_net": "erro de rede", "r_404": "modelo não encontrado", "r_err": "erro", "r_empty": "resposta vazia", "switch": "mudança", "no_ai": "Nenhuma IA ativa. Abra ⚙ Definições.", "all_fail": "Todas as IA falharam:", "memo": "🧠 Memorizado:", "forgot": "🧠 Esquecido:", "auto_on": "Leitura automática ativada.", "auto_off": "Leitura automática desativada.", "online_fail": "Voz natural indisponível de momento: a usar a voz do telefone.", "tts_fail": "Leitura de voz impossível:", "tts_sample": "Olá, sou o seu assistente. É assim que soa a minha voz.", "listen": "🔊 Ouvir", "sr_unavail": "reconhecimento de voz indisponível: instale ou ative a app Google", "mic_denied": "permissão do microfone recusada (Definições › Apps › Assistant IA › Permissões)", "mic_br_denied": "permissão recusada pelo navegador", "sr_none": "Reconhecimento de voz indisponível aqui. Use o microfone 🎤 do teclado.", "mic": "Microfone:", "speak_prompt": "Fale…", "v_f": "mulher", "v_m": "homem", "v_n": "neutra", "v_deep": "homem, grave", "v_dev": "Voz do telefone (offline)", "natural": "Natural", "p_gen": "🌐 Geral", "p_law": "⚖️ Direito e seguros", "p_phone": "📱 Smartphone", "h_poll": "Chave da app integrada: nada a introduzir. A sua chave (opcional): {l}", "h_or": "Chave gratuita: {l} — «openrouter/free» escolhe automaticamente um modelo gratuito.", "h_llm7": "Funciona sem chave. Chave gratuita opcional (limites maiores): {l}", "h_coh": "Chave de teste gratuita, sem cartão: {l} — uso não comercial.", "h_nv": "Chave gratuita (verificação por SMS): {l}"}, "ar": {"name": "العربية", "bcp": "ar-SA", "rtl": true, "ask": "اطرح سؤالك.", "ph": "سؤالك…", "t_voice": "قراءة الإجابات بصوت عالٍ", "t_new": "محادثة جديدة", "t_settings": "الإعدادات", "t_mic": "تحدّث", "settings": "الإعدادات", "set_hint": "تُجرَّب أنظمة الذكاء الاصطناعي بالترتيب أدناه. إذا بلغ أحدها حدّه (حصة، خطأ، مفتاح غير صالح) ينتقل التطبيق تلقائيًا إلى التالي. تُحفظ المفاتيح على هذا الجهاز فقط.", "instr": "تعليمات الملف «{p}»", "instr_reset": "↺ التعليمات الافتراضية", "voice_t": "🔊 صوت القراءة", "test": "▶ تجربة", "voice_hint": "الأصوات «الطبيعية» أكثر واقعية (تتطلب الإنترنت). عند حدوث مشكلة يُستخدم صوت الهاتف.", "mem_t": "🧠 ذاكرة المساعد", "mem_hint": "معلومات ومهام محفوظة، مشتركة بين جميع الملفات، على هذا الجهاز فقط. يضيفها المساعد تلقائيًا، ويمكنك أيضًا قول «تذكّر أن…» أو «انسَ…».", "mem_ph": "أضف معلومة…", "mem_clear": "مسح الكل", "mem_empty": "الذاكرة فارغة.", "mem_confirm": "مسح الذاكرة بالكامل؟", "quota_reset": "إعادة ضبط حالة الحصص", "lang_t": "🌍 اللغة", "key": "مفتاح API", "key_opt": "مفتاح API (اختياري)", "model": "النموذج", "model_def": "النموذج الافتراضي", "paused": "متوقف حتى", "r_limit": "تم بلوغ الحد", "r_credit": "نفد الرصيد", "r_key": "المفتاح مرفوض", "r_down": "الخدمة غير متاحة", "r_net": "خطأ في الشبكة", "r_404": "النموذج غير موجود", "r_err": "خطأ", "r_empty": "إجابة فارغة", "switch": "انتقال", "no_ai": "لا يوجد ذكاء اصطناعي مفعّل. افتح ⚙ الإعدادات.", "all_fail": "فشلت جميع الأنظمة:", "memo": "🧠 تم الحفظ:", "forgot": "🧠 تم النسيان:", "auto_on": "تم تفعيل القراءة التلقائية.", "auto_off": "تم إيقاف القراءة التلقائية.", "online_fail": "الصوت الطبيعي غير متاح حاليًا: يُستخدم صوت الهاتف.", "tts_fail": "تعذّرت القراءة الصوتية:", "tts_sample": "مرحبًا، أنا مساعدك. هكذا يبدو صوتي.", "listen": "🔊 استماع", "sr_unavail": "التعرّف على الصوت غير متاح: ثبّت تطبيق Google أو فعّله", "mic_denied": "تم رفض إذن الميكروفون (الإعدادات › التطبيقات › Assistant IA › الأذونات)", "mic_br_denied": "رفض المتصفح الإذن", "sr_none": "التعرّف على الصوت غير متاح هنا. استخدم ميكروفون 🎤 لوحة المفاتيح.", "mic": "الميكروفون:", "speak_prompt": "تحدّث…", "v_f": "امرأة", "v_m": "رجل", "v_n": "محايد", "v_deep": "رجل، عميق", "v_dev": "صوت الهاتف (بدون إنترنت)", "natural": "طبيعي", "p_gen": "🌐 عام", "p_law": "⚖️ القانون والتأمين", "p_phone": "📱 الهاتف الذكي", "h_poll": "مفتاح التطبيق مدمج: لا حاجة لإدخال شيء. مفتاحك الخاص (اختياري): {l}", "h_or": "مفتاح مجاني: {l} — «openrouter/free» يختار نموذجًا مجانيًا تلقائيًا.", "h_llm7": "يعمل بدون مفتاح. مفتاح مجاني اختياري (حدود أعلى): {l}", "h_coh": "مفتاح تجريبي مجاني بدون بطاقة: {l} — للاستخدام غير التجاري.", "h_nv": "مفتاح مجاني (تحقق عبر SMS): {l}"}, "tr": {"name": "Türkçe", "bcp": "tr-TR", "ask": "Sorunuzu sorun.", "ph": "Sorunuz…", "t_voice": "Yanıtları sesli oku", "t_new": "Yeni sohbet", "t_settings": "Ayarlar", "t_mic": "Konuş", "settings": "Ayarlar", "set_hint": "Yapay zekâlar aşağıdaki sırayla denenir. Biri sınırına ulaşırsa (kota, hata, geçersiz anahtar) uygulama otomatik olarak bir sonrakine geçer. Anahtarlar yalnızca bu cihazda saklanır.", "instr": "“{p}” profilinin talimatları", "instr_reset": "↺ Varsayılan talimatlar", "voice_t": "🔊 Okuma sesi", "test": "▶ Dene", "voice_hint": "“Doğal” sesler daha gerçekçidir (internet gerekir). Sorun olursa telefonun sesi devreye girer.", "mem_t": "🧠 Asistanın hafızası", "mem_hint": "Hatırlanan bilgiler ve görevler, tüm profiller için ortak, yalnızca bu cihazda saklanır. Asistan bunları kendisi ekler; “şunu hatırla…” veya “unut…” da diyebilirsiniz.", "mem_ph": "Bir bilgi ekleyin…", "mem_clear": "Tümünü sil", "mem_empty": "Hafıza boş.", "mem_confirm": "Tüm hafıza silinsin mi?", "quota_reset": "Kota durumunu sıfırla", "lang_t": "🌍 Dil", "key": "API anahtarı", "key_opt": "API anahtarı (isteğe bağlı)", "model": "Model", "model_def": "Varsayılan model", "paused": "Şu saate kadar duraklatıldı:", "r_limit": "sınıra ulaşıldı", "r_credit": "kredi bitti", "r_key": "anahtar reddedildi", "r_down": "hizmet kullanılamıyor", "r_net": "ağ hatası", "r_404": "model bulunamadı", "r_err": "hata", "r_empty": "boş yanıt", "switch": "geçiş", "no_ai": "Etkin yapay zekâ yok. ⚙ Ayarlar’ı açın.", "all_fail": "Tüm yapay zekâlar başarısız oldu:", "memo": "🧠 Hatırlandı:", "forgot": "🧠 Unutuldu:", "auto_on": "Otomatik sesli okuma açıldı.", "auto_off": "Otomatik sesli okuma kapatıldı.", "online_fail": "Doğal ses şu anda kullanılamıyor: telefonun sesi kullanılıyor.", "tts_fail": "Sesli okuma yapılamadı:", "tts_sample": "Merhaba, ben asistanınızım. Sesim böyle.", "listen": "🔊 Dinle", "sr_unavail": "ses tanıma kullanılamıyor: Google uygulamasını yükleyin veya etkinleştirin", "mic_denied": "mikrofon izni reddedildi (Ayarlar › Uygulamalar › Assistant IA › İzinler)", "mic_br_denied": "tarayıcı izni reddetti", "sr_none": "Ses tanıma burada kullanılamıyor. Klavyenizin mikrofonunu 🎤 kullanın.", "mic": "Mikrofon:", "speak_prompt": "Konuşun…", "v_f": "kadın", "v_m": "erkek", "v_n": "nötr", "v_deep": "erkek, kalın", "v_dev": "Telefon sesi (çevrimdışı)", "natural": "Doğal", "p_gen": "🌐 Genel", "p_law": "⚖️ Hukuk ve sigorta", "p_phone": "📱 Akıllı telefon", "h_poll": "Uygulama anahtarı yerleşik: bir şey girmenize gerek yok. Kendi anahtarınız (isteğe bağlı): {l}", "h_or": "Ücretsiz anahtar: {l} — “openrouter/free” otomatik olarak ücretsiz bir model seçer.", "h_llm7": "Anahtarsız çalışır. İsteğe bağlı ücretsiz anahtar (daha yüksek sınırlar): {l}", "h_coh": "Ücretsiz deneme anahtarı, kart gerekmez: {l} — ticari olmayan kullanım.", "h_nv": "Ücretsiz anahtar (SMS doğrulaması): {l}"}};
+const LANG_DIRECTIVE = { fr:'français', en:'English', es:'español', de:'Deutsch', it:'italiano', pt:'português', ar:'العربية (arabe)', tr:'Türkçe (turc)' };
+let lang = load('lang', null);
+if (!I18N[lang]) { const nl = (navigator.language || 'fr').slice(0, 2).toLowerCase(); lang = I18N[nl] ? nl : 'fr'; }
+const T = k => (I18N[lang] && I18N[lang][k] != null) ? I18N[lang][k] : (I18N.fr[k] != null ? I18N.fr[k] : k);
+function applyI18n() {
+  document.documentElement.lang = lang; document.documentElement.dir = I18N[lang].rtl ? 'rtl' : 'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = T(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = T(e.dataset.i18nPh));
+  document.querySelectorAll('[data-i18n-title]').forEach(e => e.title = T(e.dataset.i18nTitle));
+}
+
 
 const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash','llama-3.3-70b-versatile'];
 const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
@@ -117,8 +135,9 @@ let keys      = load('keys', {});
 Object.keys(keys).forEach(k => { if (!DEFAULT_PROVIDERS.find(p => p.id === k)) delete keys[k]; });
 let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
 const PROFILES = {
-  juridique:  { name:'⚖️ Droit & assurances', prompt:"Tu es un assistant juridique généraliste, spécialisé en droit français, en assurances et en droits sociaux. Tu réponds en français, de façon claire, structurée et concise.\n\nDomaines : droit civil (contrats, famille, succession, logement, voisinage), droit de la consommation, droit du travail, droit administratif courant ; assurances (Code des assurances, Code de la mutualité, santé, prévoyance, habitation, auto, multirisque professionnelle, emprunteur, responsabilité civile, sinistres, résiliation : lois Chatel, Hamon, Lemoine, résiliation infra-annuelle) ; protection sociale et droits sociaux (Sécurité sociale, CPAM, arrêts de travail, invalidité, accidents du travail, retraite, chômage France Travail, CAF, RSA, APL, MDPH, complémentaire santé solidaire).\n\nMéthode :\n1. Si la situation est floue, pose d'abord 1 à 3 questions précises (statut, dates, montants, type de contrat).\n2. Donne la réponse directe, puis les règles applicables en citant les articles de loi uniquement si tu en es sûr.\n3. Indique les démarches concrètes, délais, pièces à fournir et interlocuteurs (assureur, médiateur, CPAM, inspection du travail, conciliateur, avocat).\n4. Propose si utile un modèle de courrier (réclamation, résiliation, contestation, mise en demeure).\n\nRègles :\n- Distingue clairement ce qui est certain de ce qui dépend du contrat ou de la jurisprudence.\n- Les montants, plafonds et barèmes changent chaque année : signale-le et renvoie vers Légifrance, service-public.fr ou ameli.fr pour vérification.\n- N'invente jamais un article de loi, une jurisprudence ou un chiffre.\n- Pour un litige important ou une procédure judiciaire, recommande de consulter un avocat ou un juriste.\n- Pour les autres sujets, réponds aussi de ton mieux." },
-  smartphone: { name:'📱 Smartphone', prompt:DEFAULT_SYSTEM },
+  general:    { nameKey:'p_gen', prompt:"Tu es un assistant personnel généraliste, compétent dans tous les domaines : vie quotidienne, rédaction (e-mails, courriers, résumés), traduction, calculs, conseils pratiques, culture générale, études, travail, cuisine, voyages, technologie et smartphones, santé et bien-être (sans remplacer un professionnel), droit, assurances et démarches administratives (informations générales). Réponds de façon claire, structurée et concise, avec des étapes numérotées quand c'est utile. Si la question est ambiguë, pose d'abord une courte question de précision. N'invente jamais de faits, de chiffres, de lois ou de sources ; signale tes incertitudes et ce qui a pu changer récemment. Pour un sujet médical, juridique ou financier important, recommande de consulter un professionnel." },
+  juridique:  { nameKey:'p_law', prompt:"Tu es un assistant juridique généraliste, spécialisé en droit français, en assurances et en droits sociaux. Tu réponds en français, de façon claire, structurée et concise.\n\nDomaines : droit civil (contrats, famille, succession, logement, voisinage), droit de la consommation, droit du travail, droit administratif courant ; assurances (Code des assurances, Code de la mutualité, santé, prévoyance, habitation, auto, multirisque professionnelle, emprunteur, responsabilité civile, sinistres, résiliation : lois Chatel, Hamon, Lemoine, résiliation infra-annuelle) ; protection sociale et droits sociaux (Sécurité sociale, CPAM, arrêts de travail, invalidité, accidents du travail, retraite, chômage France Travail, CAF, RSA, APL, MDPH, complémentaire santé solidaire).\n\nMéthode :\n1. Si la situation est floue, pose d'abord 1 à 3 questions précises (statut, dates, montants, type de contrat).\n2. Donne la réponse directe, puis les règles applicables en citant les articles de loi uniquement si tu en es sûr.\n3. Indique les démarches concrètes, délais, pièces à fournir et interlocuteurs (assureur, médiateur, CPAM, inspection du travail, conciliateur, avocat).\n4. Propose si utile un modèle de courrier (réclamation, résiliation, contestation, mise en demeure).\n\nRègles :\n- Distingue clairement ce qui est certain de ce qui dépend du contrat ou de la jurisprudence.\n- Les montants, plafonds et barèmes changent chaque année : signale-le et renvoie vers Légifrance, service-public.fr ou ameli.fr pour vérification.\n- N'invente jamais un article de loi, une jurisprudence ou un chiffre.\n- Pour un litige important ou une procédure judiciaire, recommande de consulter un avocat ou un juriste.\n- Pour les autres sujets, réponds aussi de ton mieux." },
+  smartphone: { nameKey:'p_phone', prompt:DEFAULT_SYSTEM },
 };
 let prompts   = load('prompts', {});
 let histories = load('histories', null);
@@ -126,7 +145,7 @@ if (!histories) {               // migration ancienne version
   histories = { smartphone: load('history', []) };
   const old = load('system', null); if (old && old !== DEFAULT_SYSTEM) prompts.smartphone = old;
 }
-let profile = load('profile', 'juridique'); if (!PROFILES[profile]) profile = 'juridique';
+let profile = load('profile', 'general'); if (!PROFILES[profile]) profile = 'general';
 let systemPrompt = prompts[profile] || PROFILES[profile].prompt;
 let history   = histories[profile] || [];
 let memory    = load('memory', []);     // [{t, d}]
@@ -190,14 +209,14 @@ function addMsg(role, text, by) {
     d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
     d.innerHTML = role === 'user' ? esc(text) : md(text);
     if (by) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = by;
-      if (role !== 'user') { const b = document.createElement('button'); b.className = 'say'; b.textContent = '🔊 Écouter'; b.onclick = () => speak(text); t.appendChild(b); }
+      if (role !== 'user') { const b = document.createElement('button'); b.className = 'say'; b.textContent = T('listen'); b.onclick = () => speak(text); t.appendChild(b); }
       d.appendChild(t); }
   }
   chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
 }
 function render() {
   chat.innerHTML = '';
-  if (!history.length) addMsg('sys', 'Posez votre question.');
+  if (!history.length) addMsg('sys', T('ask'));
   history.forEach(m => addMsg(m.role, m.content, m.by));
 }
 function setStatus(t){ $('status').textContent = t || ''; }
@@ -205,13 +224,13 @@ function setStatus(t){ $('status').textContent = t || ''; }
 // ---------- Appel avec bascule automatique ----------
 function classify(status, body) {
   const b = (body || '').toLowerCase();
-  if (status === 429 || b.includes('quota') || b.includes('rate limit') || b.includes('resource_exhausted')) return {reason:'limite atteinte', wait: 15*60*1000};
-  if (status === 402 || b.includes('insufficient') || b.includes('credit') || b.includes('balance')) return {reason:'crédit épuisé', wait: 6*3600*1000};
-  if (status === 401 || status === 403) return {reason:'clé refusée', wait: 0};
-  if (status >= 500) return {reason:'service indisponible', wait: 2*60*1000};
-  if (status === 0) return {reason:'erreur réseau', wait: 0};
-  if (status === 404) return {reason:'modèle introuvable (vérifier le nom du modèle dans ⚙)', wait: 0};
-  return {reason:'erreur ' + status, wait: 0};
+  if (status === 429 || b.includes('quota') || b.includes('rate limit') || b.includes('resource_exhausted')) return {reason:T('r_limit'), wait: 15*60*1000};
+  if (status === 402 || b.includes('insufficient') || b.includes('credit') || b.includes('balance')) return {reason:T('r_credit'), wait: 6*3600*1000};
+  if (status === 401 || status === 403) return {reason:T('r_key'), wait: 0};
+  if (status >= 500) return {reason:T('r_down'), wait: 2*60*1000};
+  if (status === 0) return {reason:T('r_net'), wait: 0};
+  if (status === 404) return {reason:T('r_404') + ' (⚙)', wait: 0};
+  return {reason:T('r_err') + ' ' + status, wait: 0};
 }
 
 async function callProvider(p, messages) {
@@ -227,7 +246,7 @@ async function callProvider(p, messages) {
     if (!r.ok) return { ok:false, status:r.status, body:txt };
     const j = JSON.parse(txt);
     const content = j.choices?.[0]?.message?.content;
-    if (!content) return { ok:false, status:500, body:'réponse vide' };
+    if (!content) return { ok:false, status:500, body:T('r_empty') };
     return { ok:true, content };
   } catch (e) {
     return { ok:false, status:0, body:String(e) };
@@ -235,12 +254,12 @@ async function callProvider(p, messages) {
 }
 
 async function ask(userText) {
-  const messages = [{role:'system', content:systemPrompt + MEM_INSTR + memBlock()},
+  const messages = [{role:'system', content:systemPrompt + MEM_INSTR + memBlock() + '\n\n---\nLANGUE / LANGUAGE : réponds toujours en ' + LANG_DIRECTIVE[lang] + ', même si les instructions ci-dessus sont rédigées dans une autre langue. Si l\'utilisateur t\'écrit clairement dans une autre langue, réponds dans sa langue.'},
     ...history.slice(-20).map(m => ({role:m.role, content:m.content})),
     {role:'user', content:userText}];
   const now = Date.now();
   const candidates = providers.filter(p => p.enabled && (keys[p.id] || p.noKey));
-  if (!candidates.length) return { error:'Aucune IA activée. Ouvrez ⚙ Réglages.' };
+  if (!candidates.length) return { error:T('no_ai') };
 
   // D'abord ceux qui ne sont pas en pause, puis ceux en pause en dernier recours
   const ordered = [...candidates.filter(p => !(cooldown[p.id] > now)), ...candidates.filter(p => cooldown[p.id] > now)];
@@ -252,11 +271,11 @@ async function ask(userText) {
     const c = classify(res.status, res.body);
     if (c.wait) cooldown[p.id] = Date.now() + c.wait;
     let detail = ''; try { const j = JSON.parse(res.body); detail = (Array.isArray(j) ? j[0] : j)?.error?.message || ''; } catch {}
-    notes.push(p.name + ' : ' + c.reason + (detail ? ' (' + detail.slice(0,120) + ')' : '') + ' → bascule');
+    notes.push(p.name + ' : ' + c.reason + (detail ? ' (' + detail.slice(0,120) + ')' : '') + ' → ' + T('switch'));
     persist();
   }
   setStatus('');
-  return { error:'Toutes les IA ont échoué :\n' + notes.join('\n'), notes };
+  return { error:T('all_fail') + '\n' + notes.join('\n'), notes };
 }
 
 let busy = false;
@@ -276,8 +295,8 @@ async function send() {
     history.push({role:'user', content:text}, {role:'assistant', content:m.clean, by:res.by});
     persist(); addMsg('assistant', m.clean, res.by);
     if (autoSpeak) speak(m.clean);
-    m.added.forEach(t => addMsg('sys', '🧠 Mémorisé : ' + t));
-    m.removed.forEach(t => addMsg('sys', '🧠 Oublié : ' + t));
+    m.added.forEach(t => addMsg('sys', T('memo') + ' ' + t));
+    m.removed.forEach(t => addMsg('sys', T('forgot') + ' ' + t));
   }
   busy = false; $('btnSend').disabled = false;
 }
@@ -285,7 +304,7 @@ async function send() {
 // ---------- Réglages ----------
 function renderMemory() {
   const el = $('memList'); el.innerHTML = '';
-  if (!memory.length) { el.innerHTML = '<div class="hint">Mémoire vide.</div>'; return; }
+  if (!memory.length) { el.innerHTML = '<div class="hint">' + T('mem_empty') + '</div>'; return; }
   memory.forEach((m, i) => {
     const d = document.createElement('div'); d.className = 'mem';
     d.innerHTML = '<span>' + esc(m.t) + (m.d ? ' <small>' + esc(m.d) + '</small>' : '') + '</span><button data-memdel="' + i + '">✕</button>';
@@ -306,12 +325,12 @@ function renderSettings() {
         <button data-up="${i}">↑</button><button data-down="${i}">↓</button>
         <input type="checkbox" data-en="${i}" ${p.enabled ? 'checked' : ''}>
       </div>
-      <input type="password" placeholder="${p.noKey ? 'Clé API (facultative)' : 'Clé API'}" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
-      <div class="row"><input type="text" placeholder="Modèle" data-model="${i}" value="${esc(p.model)}"><button data-def="${i}" title="Modèle par défaut" style="margin-top:8px">↺</button></div>
-      <div class="hint">${p.help}${paused ? '<br>⏸ En pause jusqu\'à ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
+      <input type="password" placeholder="${p.noKey ? T('key_opt') : T('key')}" data-key="${p.id}" value="${esc(keys[p.id] || '')}">
+      <div class="row"><input type="text" placeholder="${T('model')}" data-model="${i}" value="${esc(p.model)}"><button data-def="${i}" title="${T('model_def')}" style="margin-top:8px">↺</button></div>
+      <div class="hint">${T(p.help).replace('{l}', '<a href="' + p.link + '" target="_blank">' + p.link.replace(/^https:\/\//, '') + '</a>')}${paused ? '<br>⏸ ' + T('paused') + ' ' + new Date(cooldown[p.id]).toLocaleTimeString() : ''}</div>`;
     list.appendChild(div);
   });
-  $('sysPrompt').value = systemPrompt; $('profName').textContent = PROFILES[profile].name;
+  $('sysPrompt').value = systemPrompt; $('instrTitle').textContent = T('instr').replace('{p}', T(PROFILES[profile].nameKey));
 }
 $('provList').addEventListener('click', e => {
   const up = e.target.dataset.up, down = e.target.dataset.down;
@@ -330,14 +349,15 @@ $('provList').addEventListener('change', e => {
 $('sysPrompt').addEventListener('change', e => { const v = e.target.value.trim(); if (v && v !== PROFILES[profile].prompt) prompts[profile] = v; else delete prompts[profile]; systemPrompt = v || PROFILES[profile].prompt; persist(); });
 $('btnPromptReset').onclick = () => { delete prompts[profile]; systemPrompt = PROFILES[profile].prompt; persist(); renderSettings(); };
 const sel = $('profile');
-Object.entries(PROFILES).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v.name; sel.appendChild(o); });
+function fillProfiles() { sel.innerHTML = ''; Object.entries(PROFILES).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = T(v.nameKey); sel.appendChild(o); }); sel.value = profile; }
+fillProfiles();
 sel.value = profile;
 sel.onchange = () => { persist(); profile = sel.value; systemPrompt = prompts[profile] || PROFILES[profile].prompt; history = histories[profile] || []; persist(); render(); };
 $('btnSettings').onclick = () => { renderSettings(); $('settings').classList.add('open'); };
 $('btnClose').onclick = () => $('settings').classList.remove('open');
 $('memList').addEventListener('click', e => { const i = e.target.dataset.memdel; if (i !== undefined) { memory.splice(+i, 1); persist(); renderMemory(); } });
 $('memAdd').onclick = () => { if (memAddItem($('memNew').value)) { $('memNew').value = ''; persist(); renderMemory(); } };
-$('memClear').onclick = () => { if (memory.length && window.confirm('Effacer toute la mémoire ?')) { memory = []; persist(); renderMemory(); } };
+$('memClear').onclick = () => { if (memory.length && window.confirm(T('mem_confirm'))) { memory = []; persist(); renderMemory(); } };
 $('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
 $('btnNew').onclick = () => { history = []; persist(); render(); };
 
@@ -355,7 +375,9 @@ function nat(p, m, o) {
 }
 const NativeSR = hasNative('SpeechRecognition'), NativeTTS = hasNative('TextToSpeech');
 const WebSR = !IS_APP && (window.SpeechRecognition || window.webkitSpeechRecognition);
-const VOICES = { nova:'Naturelle – Nova (femme)', shimmer:'Naturelle – Shimmer (femme)', alloy:'Naturelle – Alloy (neutre)', echo:'Naturelle – Echo (homme)', onyx:'Naturelle – Onyx (homme, grave)', fable:'Naturelle – Fable', device:'Voix du téléphone (hors ligne)' };
+const VOICE_IDS = { nova:'v_f', shimmer:'v_f', alloy:'v_n', echo:'v_m', onyx:'v_deep', fable:'', device:'' };
+const VOICES = VOICE_IDS;
+const voiceLabel = k => k === 'device' ? T('v_dev') : T('natural') + ' – ' + k[0].toUpperCase() + k.slice(1) + (VOICE_IDS[k] ? ' (' + T(VOICE_IDS[k]) + ')' : '');
 let ttsVoice = load('ttsVoice', 'nova'); if (!VOICES[ttsVoice]) ttsVoice = 'nova';
 let autoSpeak = load('autoSpeak', false);
 const player = new Audio(); player.preload = 'auto';
@@ -394,14 +416,14 @@ async function speakOnline(t, token) {
   }
 }
 async function speakDevice(t) {
-  if (NativeTTS) { await nat('TextToSpeech', 'speak', { text: t, lang: 'fr-FR', rate: 1.0, pitch: 1.0, volume: 1.0, category: 'playback' }); return; }
+  if (NativeTTS) { await nat('TextToSpeech', 'speak', { text: t, lang: I18N[lang].bcp, rate: 1.0, pitch: 1.0, volume: 1.0, category: 'playback' }); return; }
   if (window.speechSynthesis) {
-    const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR';
-    const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('fr'));
+    const u = new SpeechSynthesisUtterance(t); u.lang = I18N[lang].bcp;
+    const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith(lang));
     const v = vs.find(v => /natural|neural|premium|enhanced|google/i.test(v.name)) || vs[0]; if (v) u.voice = v;
     speechSynthesis.speak(u); return;
   }
-  throw new Error('lecture vocale indisponible sur cet appareil');
+  throw new Error(T('tts_fail'));
 }
 async function stopSpeak() {
   speakToken++;
@@ -412,19 +434,20 @@ async function speak(text) {
   await stopSpeak(); const token = speakToken; const t = plain(text); if (!t) return;
   if (ttsVoice !== 'device' && !onlineFailed) {
     try { await speakOnline(t, token); return; }
-    catch (e) { if (token !== speakToken) return; onlineFailed = true; addMsg('sys', 'Voix naturelle indisponible pour le moment : voix du téléphone utilisée.'); setTimeout(() => { onlineFailed = false; }, 10 * 60 * 1000); }
+    catch (e) { if (token !== speakToken) return; onlineFailed = true; addMsg('sys', T('online_fail')); setTimeout(() => { onlineFailed = false; }, 10 * 60 * 1000); }
   }
-  try { await speakDevice(t); } catch (e) { addMsg('sys', 'Lecture vocale impossible : ' + (e.message || e)); }
+  try { await speakDevice(t); } catch (e) { addMsg('sys', T('tts_fail') + ' ' + (e.message || e)); }
 }
 function setVoiceBtn() { $('btnVoice').textContent = autoSpeak ? '🔊' : '🔇'; }
-$('btnVoice').onclick = () => { unlockAudio(); autoSpeak = !autoSpeak; save('autoSpeak', autoSpeak); setVoiceBtn(); if (!autoSpeak) stopSpeak(); addMsg('sys', autoSpeak ? 'Lecture automatique des réponses activée.' : 'Lecture automatique désactivée.'); };
+$('btnVoice').onclick = () => { unlockAudio(); autoSpeak = !autoSpeak; save('autoSpeak', autoSpeak); setVoiceBtn(); if (!autoSpeak) stopSpeak(); addMsg('sys', autoSpeak ? T('auto_on') : T('auto_off')); };
 setVoiceBtn();
 (function () {
   const sel = $('ttsVoice');
-  Object.entries(VOICES).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v; sel.appendChild(o); });
+  window.fillVoices = () => { sel.innerHTML = ''; Object.keys(VOICES).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = voiceLabel(k); sel.appendChild(o); }); sel.value = ttsVoice; };
+  fillVoices();
   sel.value = ttsVoice;
   sel.onchange = () => { ttsVoice = sel.value; save('ttsVoice', ttsVoice); onlineFailed = false; };
-  $('ttsTest').onclick = () => { unlockAudio(); speak('Bonjour, je suis votre assistant. Voici à quoi ressemble ma voix.'); };
+  $('ttsTest').onclick = () => { unlockAudio(); speak(T('tts_sample')); };
 })();
 
 let listening = false, webRec = null;
@@ -436,27 +459,27 @@ async function listen() {
   try {
     if (NativeSR) {
       const av = await nat('SpeechRecognition', 'available');
-      if (av && av.available === false) throw new Error('reconnaissance vocale indisponible : installez ou activez l\'application Google sur le téléphone');
+      if (av && av.available === false) throw new Error(T('sr_unavail'));
       let perm = await nat('SpeechRecognition', 'checkPermissions').catch(() => null);
       if (!perm || perm.speechRecognition !== 'granted') perm = await nat('SpeechRecognition', 'requestPermissions');
-      if (perm && perm.speechRecognition && perm.speechRecognition !== 'granted') throw new Error('autorisation du micro refusée (Paramètres Android › Applications › Assistant IA › Autorisations)');
+      if (perm && perm.speechRecognition && perm.speechRecognition !== 'granted') throw new Error(T('mic_denied'));
       micState(true);
-      const res = await nat('SpeechRecognition', 'start', { language: 'fr-FR', maxResults: 1, prompt: 'Parlez…', partialResults: false, popup: true });
+      const res = await nat('SpeechRecognition', 'start', { language: I18N[lang].bcp, maxResults: 1, prompt: T('speak_prompt'), partialResults: false, popup: true });
       micState(false);
       const txt = res && res.matches && res.matches[0];
       if (txt) { input.value = txt; autosize(); send(); }
       return;
     }
     if (WebSR) {
-      webRec = new WebSR(); webRec.lang = 'fr-FR'; webRec.interimResults = true; webRec.maxAlternatives = 1;
+      webRec = new WebSR(); webRec.lang = I18N[lang].bcp; webRec.interimResults = true; webRec.maxAlternatives = 1;
       let finalTxt = '';
       webRec.onresult = e => { let t = ''; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) finalTxt = t; } input.value = t; autosize(); };
-      webRec.onerror = e => { micState(false); if (e.error !== 'no-speech' && e.error !== 'aborted') addMsg('sys', 'Micro : ' + (e.error === 'not-allowed' ? 'autorisation refusée par le navigateur' : e.error)); };
+      webRec.onerror = e => { micState(false); if (e.error !== 'no-speech' && e.error !== 'aborted') addMsg('sys', T('mic') + ' ' + (e.error === 'not-allowed' ? T('mic_br_denied') : e.error)); };
       webRec.onend = () => { micState(false); if (finalTxt.trim()) send(); };
       micState(true); webRec.start(); return;
     }
-    addMsg('sys', 'Reconnaissance vocale non disponible ici. Utilisez le micro 🎤 de votre clavier.');
-  } catch (e) { micState(false); addMsg('sys', 'Micro : ' + (e.message || e)); }
+    addMsg('sys', T('sr_none'));
+  } catch (e) { micState(false); addMsg('sys', T('mic') + ' ' + (e.message || e)); }
 }
 $('btnMic').onclick = listen;
 
@@ -466,6 +489,13 @@ input.addEventListener('input', autosize);
 input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 700) { e.preventDefault(); send(); } });
 $('btnSend').onclick = () => { unlockAudio(); send(); };
 
+(function () {
+  const ls = $('langSel');
+  Object.entries(I18N).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v.name; ls.appendChild(o); });
+  ls.value = lang;
+  ls.onchange = () => { lang = ls.value; save('lang', lang); applyI18n(); fillProfiles(); fillVoices(); renderSettings(); render(); };
+})();
+applyI18n();
 render();
 </script>
 </body>
