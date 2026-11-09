@@ -74,6 +74,11 @@
     <button id="btnPromptReset" style="margin-top:8px">↺ Instructions par défaut</button>
   </div>
   <div class="prov">
+    <div class="name">🔊 Voix de lecture</div>
+    <div class="row"><select id="ttsVoice" style="flex:1;margin-top:8px;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:14px"></select><button id="ttsTest" style="margin-top:8px">▶ Tester</button></div>
+    <div class="hint">Les voix « Naturelle » sont plus réalistes (connexion internet requise). En cas de problème, la voix du téléphone prend le relais.</div>
+  </div>
+  <div class="prov">
     <div class="name">🧠 Mémoire de l'assistant</div>
     <div class="hint">Informations et tâches retenues, communes aux deux profils, stockées uniquement sur cet appareil. L'assistant les ajoute tout seul ; vous pouvez aussi lui dire « retiens que… » ou « oublie… ».</div>
     <div id="memList"></div>
@@ -337,39 +342,106 @@ $('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
 $('btnNew').onclick = () => { history = []; persist(); render(); };
 
 // ---------- Voix ----------
-const Plug = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ? window.Capacitor.Plugins : null;
-const NativeSR = Plug && Plug.SpeechRecognition, NativeTTS = Plug && Plug.TextToSpeech;
-const WebSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const CAP = window.Capacitor;
+const IS_APP = !!(CAP && ((CAP.isNativePlatform && CAP.isNativePlatform()) || (CAP.getPlatform && CAP.getPlatform() !== 'web')));
+function hasNative(n) {
+  if (!IS_APP) return false;
+  if (CAP.Plugins && CAP.Plugins[n]) return true;
+  return !!(CAP.nativePromise && (!CAP.PluginHeaders || CAP.PluginHeaders.some(h => h.name === n)));
+}
+function nat(p, m, o) {
+  if (CAP.Plugins && CAP.Plugins[p] && CAP.Plugins[p][m]) return CAP.Plugins[p][m](o || {});
+  return CAP.nativePromise(p, m, o || {});
+}
+const NativeSR = hasNative('SpeechRecognition'), NativeTTS = hasNative('TextToSpeech');
+const WebSR = !IS_APP && (window.SpeechRecognition || window.webkitSpeechRecognition);
+const VOICES = { nova:'Naturelle – Nova (femme)', shimmer:'Naturelle – Shimmer (femme)', alloy:'Naturelle – Alloy (neutre)', echo:'Naturelle – Echo (homme)', onyx:'Naturelle – Onyx (homme, grave)', fable:'Naturelle – Fable', device:'Voix du téléphone (hors ligne)' };
+let ttsVoice = load('ttsVoice', 'nova'); if (!VOICES[ttsVoice]) ttsVoice = 'nova';
 let autoSpeak = load('autoSpeak', false);
-function plain(t) { return t.replace(/```[\s\S]*?```/g, ' (bloc de code) ').replace(/[*_#`>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/\n+/g, '. '); }
-async function stopSpeak() { try { if (NativeTTS) await NativeTTS.stop(); else if (window.speechSynthesis) speechSynthesis.cancel(); } catch {} }
+const player = new Audio(); player.preload = 'auto';
+let audioUnlocked = false, speakToken = 0, onlineFailed = false;
+function silentWav() {
+  const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer), w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  let bin = ''; b.forEach(x => bin += String.fromCharCode(x)); return 'data:audio/wav;base64,' + btoa(bin);
+}
+function unlockAudio() {   // iPhone : autorise la lecture audio après un geste de l'utilisateur
+  if (audioUnlocked) return; audioUnlocked = true;
+  try { player.src = silentWav();
+    const pr = player.play(); if (pr) pr.catch(() => {});
+  } catch {}
+}
+function plain(t) { return t.replace(/```[\s\S]*?```/g, ' (bloc de code) ').replace(/[*_#`>|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/\n+/g, '. ').replace(/(\.\s*){2,}/g, '. ').trim(); }
+function chunks(t, max) {
+  const parts = t.match(/[^.!?;:]+[.!?;:]*\s*/g) || [t]; const out = []; let cur = '';
+  for (const p of parts) { if ((cur + p).length > max && cur) { out.push(cur.trim()); cur = ''; } cur += p; while (cur.length > max) { out.push(cur.slice(0, max)); cur = cur.slice(max); } }
+  if (cur.trim()) out.push(cur.trim()); return out;
+}
+function playUrl(url, token) {
+  return new Promise((res, rej) => {
+    if (token !== speakToken) return res();
+    player.onended = () => res(); player.onerror = () => rej(new Error('audio'));
+    player.src = url; const pr = player.play(); if (pr) pr.catch(rej);
+  });
+}
+async function speakOnline(t, token) {
+  const key = keys.pollinations || (DEFAULT_PROVIDERS.find(p => p.id === 'pollinations') || {}).anonKey || '';
+  for (const c of chunks(t, 380)) {
+    if (token !== speakToken) return;
+    const url = 'https://gen.pollinations.ai/audio/' + encodeURIComponent(c) + '?voice=' + ttsVoice + (key ? '&key=' + encodeURIComponent(key) : '');
+    await playUrl(url, token);
+  }
+}
+async function speakDevice(t) {
+  if (NativeTTS) { await nat('TextToSpeech', 'speak', { text: t, lang: 'fr-FR', rate: 1.0, pitch: 1.0, volume: 1.0, category: 'playback' }); return; }
+  if (window.speechSynthesis) {
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR';
+    const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('fr'));
+    const v = vs.find(v => /natural|neural|premium|enhanced|google/i.test(v.name)) || vs[0]; if (v) u.voice = v;
+    speechSynthesis.speak(u); return;
+  }
+  throw new Error('lecture vocale indisponible sur cet appareil');
+}
+async function stopSpeak() {
+  speakToken++;
+  try { player.pause(); } catch {}
+  try { if (NativeTTS) await nat('TextToSpeech', 'stop'); else if (window.speechSynthesis) speechSynthesis.cancel(); } catch {}
+}
 async function speak(text) {
-  await stopSpeak(); const t = plain(text);
-  try {
-    if (NativeTTS) { await NativeTTS.speak({ text: t, lang: 'fr-FR', rate: 1.0, pitch: 1.0, volume: 1.0 }); return; }
-    if (window.speechSynthesis) {
-      const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR';
-      const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.startsWith('fr')); if (v) u.voice = v;
-      speechSynthesis.speak(u); return;
-    }
-    addMsg('sys', 'La lecture vocale n\'est pas disponible sur cet appareil.');
-  } catch (e) { addMsg('sys', 'Lecture vocale impossible : ' + (e.message || e)); }
+  await stopSpeak(); const token = speakToken; const t = plain(text); if (!t) return;
+  if (ttsVoice !== 'device' && !onlineFailed) {
+    try { await speakOnline(t, token); return; }
+    catch (e) { if (token !== speakToken) return; onlineFailed = true; addMsg('sys', 'Voix naturelle indisponible pour le moment : voix du téléphone utilisée.'); setTimeout(() => { onlineFailed = false; }, 10 * 60 * 1000); }
+  }
+  try { await speakDevice(t); } catch (e) { addMsg('sys', 'Lecture vocale impossible : ' + (e.message || e)); }
 }
 function setVoiceBtn() { $('btnVoice').textContent = autoSpeak ? '🔊' : '🔇'; }
-$('btnVoice').onclick = () => { autoSpeak = !autoSpeak; save('autoSpeak', autoSpeak); setVoiceBtn(); if (!autoSpeak) stopSpeak(); addMsg('sys', autoSpeak ? 'Lecture automatique des réponses activée.' : 'Lecture automatique désactivée.'); };
+$('btnVoice').onclick = () => { unlockAudio(); autoSpeak = !autoSpeak; save('autoSpeak', autoSpeak); setVoiceBtn(); if (!autoSpeak) stopSpeak(); addMsg('sys', autoSpeak ? 'Lecture automatique des réponses activée.' : 'Lecture automatique désactivée.'); };
 setVoiceBtn();
+(function () {
+  const sel = $('ttsVoice');
+  Object.entries(VOICES).forEach(([k, v]) => { const o = document.createElement('option'); o.value = k; o.textContent = v; sel.appendChild(o); });
+  sel.value = ttsVoice;
+  sel.onchange = () => { ttsVoice = sel.value; save('ttsVoice', ttsVoice); onlineFailed = false; };
+  $('ttsTest').onclick = () => { unlockAudio(); speak('Bonjour, je suis votre assistant. Voici à quoi ressemble ma voix.'); };
+})();
 
 let listening = false, webRec = null;
 function micState(on) { listening = on; $('btnMic').classList.toggle('on', on); }
 async function listen() {
-  if (listening) { try { if (webRec) webRec.stop(); if (NativeSR) await NativeSR.stop(); } catch {} micState(false); return; }
+  unlockAudio();
+  if (listening) { try { if (webRec) webRec.stop(); if (NativeSR) await nat('SpeechRecognition', 'stop'); } catch {} micState(false); return; }
   await stopSpeak();
   try {
     if (NativeSR) {
-      const av = await NativeSR.available(); if (!av.available) throw new Error('reconnaissance vocale indisponible');
-      const perm = await NativeSR.requestPermissions(); if (perm.speechRecognition && perm.speechRecognition !== 'granted') throw new Error('autorisation du micro refusée');
+      const av = await nat('SpeechRecognition', 'available');
+      if (av && av.available === false) throw new Error('reconnaissance vocale indisponible : installez ou activez l\'application Google sur le téléphone');
+      let perm = await nat('SpeechRecognition', 'checkPermissions').catch(() => null);
+      if (!perm || perm.speechRecognition !== 'granted') perm = await nat('SpeechRecognition', 'requestPermissions');
+      if (perm && perm.speechRecognition && perm.speechRecognition !== 'granted') throw new Error('autorisation du micro refusée (Paramètres Android › Applications › Assistant IA › Autorisations)');
       micState(true);
-      const res = await NativeSR.start({ language: 'fr-FR', maxResults: 1, prompt: 'Parlez…', partialResults: false, popup: true });
+      const res = await nat('SpeechRecognition', 'start', { language: 'fr-FR', maxResults: 1, prompt: 'Parlez…', partialResults: false, popup: true });
       micState(false);
       const txt = res && res.matches && res.matches[0];
       if (txt) { input.value = txt; autosize(); send(); }
@@ -379,11 +451,11 @@ async function listen() {
       webRec = new WebSR(); webRec.lang = 'fr-FR'; webRec.interimResults = true; webRec.maxAlternatives = 1;
       let finalTxt = '';
       webRec.onresult = e => { let t = ''; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) finalTxt = t; } input.value = t; autosize(); };
-      webRec.onerror = e => { micState(false); if (e.error !== 'no-speech' && e.error !== 'aborted') addMsg('sys', 'Micro : ' + e.error); };
+      webRec.onerror = e => { micState(false); if (e.error !== 'no-speech' && e.error !== 'aborted') addMsg('sys', 'Micro : ' + (e.error === 'not-allowed' ? 'autorisation refusée par le navigateur' : e.error)); };
       webRec.onend = () => { micState(false); if (finalTxt.trim()) send(); };
       micState(true); webRec.start(); return;
     }
-    addMsg('sys', 'La reconnaissance vocale n\'est pas disponible dans ce navigateur. Utilisez le micro du clavier.');
+    addMsg('sys', 'Reconnaissance vocale non disponible ici. Utilisez le micro 🎤 de votre clavier.');
   } catch (e) { micState(false); addMsg('sys', 'Micro : ' + (e.message || e)); }
 }
 $('btnMic').onclick = listen;
@@ -392,7 +464,7 @@ $('btnMic').onclick = listen;
 function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 input.addEventListener('input', autosize);
 input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 700) { e.preventDefault(); send(); } });
-$('btnSend').onclick = send;
+$('btnSend').onclick = () => { unlockAudio(); send(); };
 
 render();
 </script>
