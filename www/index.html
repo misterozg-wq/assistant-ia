@@ -111,7 +111,7 @@
 <script>
 // ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
 const DEFAULT_PROVIDERS = [
-  { id:'pollinations', vision:true, name:'Pollinations', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true, anonKey:'pk_9LSWbR1pdhYD7S84',
+  { id:'pollinations', vision:true, name:'Pollinations', url:'https://text.pollinations.ai/openai', urlKeyed:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true,
     help:'h_poll', link:'https://enter.pollinations.ai' },
   { id:'deepseek_or', vision:true, name:'OpenRouter', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
     help:'h_or', link:'https://openrouter.ai/keys' },
@@ -258,7 +258,7 @@ async function callProvider(p, messages) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 60000);
   try {
-    const r = await fetch(p.url, {
+    const r = await fetch((keys[p.id] && p.urlKeyed) || p.url, {
       method:'POST', signal: ctrl.signal,
       headers: Object.assign({ 'Content-Type':'application/json' }, (keys[p.id] || p.anonKey) ? { 'Authorization':'Bearer ' + (keys[p.id] || p.anonKey) } : {}),
       body: JSON.stringify({ model:p.model, messages, temperature:0.7 })
@@ -274,6 +274,16 @@ async function callProvider(p, messages) {
   } finally { clearTimeout(timer); }
 }
 
+function dateBlock() {
+  const now = new Date();
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+  const d = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const h = now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+  return '\n\n---\nDATE ACTUELLE (fournie par l\'appareil, elle fait foi) : ' + d + ', ' + h + (tz ? ' (' + tz + ')' : '') + ', année ' + now.getFullYear() + '. '
+    + 'Tes connaissances proviennent de données d\'entraînement plus anciennes : ne prétends jamais que nous sommes à une autre date. '
+    + 'Calcule les âges, délais et échéances à partir de cette date. Tu n\'as pas accès à internet : pour l\'actualité, les élections, les candidats, les prix, les taux ou les lois récentes, '
+    + 'indique la date approximative de tes connaissances, précise que la situation a pu évoluer depuis et invite à vérifier sur une source officielle à jour.';
+}
 function userContent(text, images, docs) {
   let t = text;
   (docs || []).forEach(d => { t += '\n\n[' + d.name + ']\n' + d.text; });
@@ -283,7 +293,7 @@ function userContent(text, images, docs) {
 async function ask(userText, images, docs) {
   const hist = history.slice(-20);
   const withImg = !!(images && images.length) || hist.slice(-6).some(m => m.images && m.images.length);
-  const messages = [{role:'system', content:systemPrompt + MEM_INSTR + memBlock() + '\n\n---\nLANGUE / LANGUAGE : réponds toujours en ' + LANG_DIRECTIVE[lang] + ', même si les instructions ci-dessus sont rédigées dans une autre langue. Si l\'utilisateur t\'écrit clairement dans une autre langue, réponds dans sa langue.'},
+  const messages = [{role:'system', content:systemPrompt + MEM_INSTR + memBlock() + dateBlock() + '\n\n---\nLANGUE / LANGUAGE : réponds toujours en ' + LANG_DIRECTIVE[lang] + ', même si les instructions ci-dessus sont rédigées dans une autre langue. Si l\'utilisateur t\'écrit clairement dans une autre langue, réponds dans sa langue.'},
     ...hist.map((m, i) => ({ role:m.role, content: (m.role === 'user' && i >= hist.length - 6 && (m.images || m.docs)) ? userContent(m.content, m.images, m.docs) : m.content })),
     {role:'user', content:userContent(userText, images, docs)}];
   const now = Date.now();
@@ -442,10 +452,11 @@ function playUrl(url, token) {
   });
 }
 async function speakOnline(t, token) {
-  const key = keys.pollinations || (DEFAULT_PROVIDERS.find(p => p.id === 'pollinations') || {}).anonKey || '';
+  const key = keys.pollinations || '';
   for (const c of chunks(t, 380)) {
     if (token !== speakToken) return;
-    const url = 'https://gen.pollinations.ai/audio/' + encodeURIComponent(c) + '?voice=' + ttsVoice + (key ? '&key=' + encodeURIComponent(key) : '');
+    const url = key ? 'https://gen.pollinations.ai/audio/' + encodeURIComponent(c) + '?voice=' + ttsVoice + '&key=' + encodeURIComponent(key)
+                    : 'https://text.pollinations.ai/' + encodeURIComponent(c) + '?model=openai-audio&voice=' + ttsVoice;
     await playUrl(url, token);
   }
 }
