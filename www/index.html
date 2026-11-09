@@ -68,12 +68,12 @@
 <script>
 // ---------- Fournisseurs (tous via une API compatible OpenAI) ----------
 const DEFAULT_PROVIDERS = [
+  { id:'pollinations', name:'Pollinations (intégré)', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true, anonKey:'pk_9LSWbR1pdhYD7S84',
+    help:'Clé de l\'app intégrée : rien à saisir. Votre propre clé (facultative) : <a href="https://enter.pollinations.ai" target="_blank">enter.pollinations.ai</a>' },
   { id:'deepseek_or', name:'OpenRouter (modèles gratuits)', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
     help:'Clé gratuite : <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — « openrouter/free » choisit automatiquement un modèle gratuit.' },
   { id:'llm7', name:'LLM7.io (gratuit, sans clé)', url:'https://api.llm7.io/v1/chat/completions', model:'default', enabled:true, noKey:true, anonKey:'unused',
     help:'Fonctionne sans clé. Clé gratuite facultative (limites plus hautes) : <a href="https://token.llm7.io" target="_blank">token.llm7.io</a>' },
-  { id:'pollinations', name:'Pollinations (gratuit, sans clé)', url:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true,
-    help:'Fonctionne sans clé (lent, limité). Clé gratuite facultative : <a href="https://enter.pollinations.ai" target="_blank">enter.pollinations.ai</a>' },
   { id:'cohere', name:'Cohere (gratuit, 1000 messages/mois)', url:'https://api.cohere.ai/compatibility/v1/chat/completions', model:'command-a-03-2025', enabled:true,
     help:'Clé d\'essai gratuite, sans carte : <a href="https://dashboard.cohere.com/api-keys" target="_blank">dashboard.cohere.com</a> — usage non commercial.' },
   { id:'nvidia', name:'NVIDIA NIM (gratuit)', url:'https://integrate.api.nvidia.com/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
@@ -89,6 +89,7 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 const OLD_MODELS = ['deepseek/deepseek-chat-v3-0324:free','gemini-2.5-flash','llama-3.3-70b-versatile'];
 const badModel = m => !m || OLD_MODELS.includes(m) || /^gen-lang-client|^projects\//i.test(m);
 let providers = mergeProviders(load('providers', null));
+if (load('orderV', 0) < 2) { providers.sort((a, b) => (b.id === 'pollinations') - (a.id === 'pollinations')); save('orderV', 2); }
 let keys      = load('keys', {});
 Object.keys(keys).forEach(k => { if (!DEFAULT_PROVIDERS.find(p => p.id === k)) delete keys[k]; });
 let cooldown  = load('cooldown', {});          // id -> timestamp jusqu'auquel on saute ce fournisseur
