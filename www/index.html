@@ -37,6 +37,8 @@
   .hint { font-size:12px; color:var(--mut); margin-top:6px; }
   .hint a { color:var(--acc); }
   .dot { width:10px; height:10px; border-radius:50%; background:var(--mut); }
+  .mem { display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .mem span { flex:1; } .mem small { color:var(--mut); }
   .dot.ok { background:var(--ok); } .dot.ko { background:var(--ko); }
 </style>
 </head>
@@ -66,6 +68,13 @@
     <div class="name">Instructions du profil « <span id="profName"></span> »</div>
     <textarea id="sysPrompt" rows="10"></textarea>
     <button id="btnPromptReset" style="margin-top:8px">↺ Instructions par défaut</button>
+  </div>
+  <div class="prov">
+    <div class="name">🧠 Mémoire de l'assistant</div>
+    <div class="hint">Informations et tâches retenues, communes aux deux profils, stockées uniquement sur cet appareil. L'assistant les ajoute tout seul ; vous pouvez aussi lui dire « retiens que… » ou « oublie… ».</div>
+    <div id="memList"></div>
+    <div class="row"><input type="text" id="memNew" placeholder="Ajouter une information…"><button id="memAdd" style="margin-top:8px">＋</button></div>
+    <button id="memClear" style="margin-top:8px">Tout effacer</button>
   </div>
   <button id="btnReset">Réinitialiser l'état des quotas</button>
 </div>
@@ -111,6 +120,35 @@ if (!histories) {               // migration ancienne version
 let profile = load('profile', 'juridique'); if (!PROFILES[profile]) profile = 'juridique';
 let systemPrompt = prompts[profile] || PROFILES[profile].prompt;
 let history   = histories[profile] || [];
+let memory    = load('memory', []);     // [{t, d}]
+const MEM_MAX = 150;
+const MEM_INSTR = "\n\n---\nMÉMOIRE : tu disposes d'une mémoire persistante sur l'utilisateur. Quand il te donne une information durable (fait le concernant, client, dossier, préférence, tâche à faire, échéance) ou te demande de retenir quelque chose, ajoute à la toute fin de ta réponse une ligne par élément au format exact [MÉMO: texte court et autonome, avec la date si utile]. Quand une tâche est terminée ou qu'il demande d'oublier quelque chose, ajoute [OUBLI: texte de l'élément concerné]. N'ajoute ces lignes que si c'est utile, n'en parle pas dans ta réponse et ne mémorise pas de mots de passe ni de numéros bancaires.";
+function memBlock() {
+  if (!memory.length) return '';
+  return "\n\nCe que tu sais déjà de l'utilisateur (mémoire, du plus ancien au plus récent) :\n" + memory.map(m => '- ' + m.t + (m.d ? ' (noté le ' + m.d + ')' : '')).join('\n');
+}
+const norm = x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function memAddItem(t) {
+  t = t.trim(); if (!t) return false;
+  if (memory.some(m => norm(m.t) === norm(t))) return false;
+  memory.push({ t, d: new Date().toLocaleDateString('fr-FR') });
+  if (memory.length > MEM_MAX) memory = memory.slice(-MEM_MAX);
+  return true;
+}
+function memForget(t) {
+  const n = norm(t); const before = memory.length;
+  memory = memory.filter(m => { const k = norm(m.t); return !(k === n || k.includes(n) || n.includes(k)); });
+  return before !== memory.length;
+}
+function extractMemory(content) {
+  const added = [], removed = [];
+  const clean = content.replace(/\[\s*(M[ÉE]MO|OUBLI)\s*:\s*([^\]]+)\]/gi, (_, kind, txt) => {
+    if (/^oubli/i.test(kind)) { if (memForget(txt)) removed.push(txt.trim()); }
+    else if (memAddItem(txt)) added.push(txt.trim());
+    return '';
+  }).replace(/\n{3,}/g, '\n\n').trim();
+  return { clean, added, removed };
+}
 
 function mergeProviders(saved) {
   if (!saved) return DEFAULT_PROVIDERS.map(p => ({...p}));
@@ -121,7 +159,7 @@ function mergeProviders(saved) {
 }
 const persist = () => {
   save('providers', providers.map(p => ({id:p.id, model:p.model, enabled:p.enabled})));
-  save('keys', keys); save('cooldown', cooldown); histories[profile] = history; save('histories', histories); save('prompts', prompts); save('profile', profile);
+  save('memory', memory); save('keys', keys); save('cooldown', cooldown); histories[profile] = history; save('histories', histories); save('prompts', prompts); save('profile', profile);
 };
 
 // ---------- Interface chat ----------
@@ -186,7 +224,7 @@ async function callProvider(p, messages) {
 }
 
 async function ask(userText) {
-  const messages = [{role:'system', content:systemPrompt},
+  const messages = [{role:'system', content:systemPrompt + MEM_INSTR + memBlock()},
     ...history.slice(-20).map(m => ({role:m.role, content:m.content})),
     {role:'user', content:userText}];
   const now = Date.now();
@@ -223,14 +261,27 @@ async function send() {
   if (res.notes) res.notes.forEach(n => { if (!res.error) addMsg('sys', n); });
   if (res.error) { addMsg('sys', res.error); }
   else {
-    history.push({role:'user', content:text}, {role:'assistant', content:res.content, by:res.by});
-    persist(); addMsg('assistant', res.content, res.by);
+    const m = extractMemory(res.content);
+    history.push({role:'user', content:text}, {role:'assistant', content:m.clean, by:res.by});
+    persist(); addMsg('assistant', m.clean, res.by);
+    m.added.forEach(t => addMsg('sys', '🧠 Mémorisé : ' + t));
+    m.removed.forEach(t => addMsg('sys', '🧠 Oublié : ' + t));
   }
   busy = false; $('btnSend').disabled = false;
 }
 
 // ---------- Réglages ----------
+function renderMemory() {
+  const el = $('memList'); el.innerHTML = '';
+  if (!memory.length) { el.innerHTML = '<div class="hint">Mémoire vide.</div>'; return; }
+  memory.forEach((m, i) => {
+    const d = document.createElement('div'); d.className = 'mem';
+    d.innerHTML = '<span>' + esc(m.t) + (m.d ? ' <small>' + esc(m.d) + '</small>' : '') + '</span><button data-memdel="' + i + '">✕</button>';
+    el.appendChild(d);
+  });
+}
 function renderSettings() {
+  renderMemory();
   const list = $('provList'); list.innerHTML = '';
   const now = Date.now();
   providers.forEach((p, i) => {
@@ -272,6 +323,9 @@ sel.value = profile;
 sel.onchange = () => { persist(); profile = sel.value; systemPrompt = prompts[profile] || PROFILES[profile].prompt; history = histories[profile] || []; persist(); render(); };
 $('btnSettings').onclick = () => { renderSettings(); $('settings').classList.add('open'); };
 $('btnClose').onclick = () => $('settings').classList.remove('open');
+$('memList').addEventListener('click', e => { const i = e.target.dataset.memdel; if (i !== undefined) { memory.splice(+i, 1); persist(); renderMemory(); } });
+$('memAdd').onclick = () => { if (memAddItem($('memNew').value)) { $('memNew').value = ''; persist(); renderMemory(); } };
+$('memClear').onclick = () => { if (memory.length && window.confirm('Effacer toute la mémoire ?')) { memory = []; persist(); renderMemory(); } };
 $('btnReset').onclick = () => { cooldown = {}; persist(); renderSettings(); };
 $('btnNew').onclick = () => { history = []; persist(); render(); };
 
