@@ -34,7 +34,7 @@ jobs:
       - name: Permissions micro et voix (Android)
         run: |
           M=android/app/src/main/AndroidManifest.xml
-          grep -q RECORD_AUDIO $M || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n    <application#' $M
+          grep -q RECORD_AUDIO $M || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n    <application#' $M
           grep -n "RECORD_AUDIO\|queries" $M
 
       - name: Compiler l'APK
