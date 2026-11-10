@@ -329,13 +329,9 @@ const DOC_CSS = 'body,div{font-family:Calibri,Arial,sans-serif;font-size:11pt;li
 function loadScriptOnce(src) { return window.__ls && window.__ls[src] || ((window.__ls = window.__ls || {})[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s); })); }
 async function makePdf(title, body) {
   await loadScriptOnce('https://cdn.jsdelivr.net/npm/html2pdf.js@0.14.0/dist/html2pdf.bundle.min.js');
-  const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:-10000px;top:0;width:700px;background:#fff;padding:0;direction:' + (I18N[lang].rtl ? 'rtl' : 'ltr');
-  el.innerHTML = '<style>' + DOC_CSS + '</style>' + docHtml(title, body); document.body.appendChild(el);
-  try {
-    const blob = await window.html2pdf().set({ margin: [14, 14, 14, 14], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(el).outputPdf('blob');
-    await saveFile(safeName(title) + '.pdf', blob);
-  } finally { el.remove(); }
+  const html = '<div dir="' + (I18N[lang].rtl ? 'rtl' : 'ltr') + '" style="width:700px;background:#fff;color:#111"><style>' + DOC_CSS + '</style>' + docHtml(title, body) + '</div>';
+  const blob = await window.html2pdf().set({ margin: [14, 14, 14, 14], image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'] } }).from(html, 'string').outputPdf('blob');
+  await saveFile(safeName(title) + '.pdf', blob);
 }
 async function makeWord(title, body) {
   const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{size:21cm 29.7cm;margin:2cm}' + DOC_CSS + '</style></head><body dir="' + (I18N[lang].rtl ? 'rtl' : 'ltr') + '">' + docHtml(title, body) + '</body></html>';
