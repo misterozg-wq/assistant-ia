@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Assistant IA">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#181b22">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --txt:#e8eaef; --mut:#8b93a3; --acc:#4f8cff; --usr:#2b5cd6; --ok:#2fbf71; --ko:#e5534b; }
   * { box-sizing:border-box; }
@@ -602,6 +605,7 @@ $('btnSend').onclick = () => { unlockAudio(); send(); };
 })();
 applyI18n();
 render();
+if ('serviceWorker' in navigator && !IS_APP && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
 </script>
 </body>
 </html>
