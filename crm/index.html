@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRM GPC</title>
+<style>
+:root{--bg:#f3f5f9;--side:#14213d;--side2:#1d2f55;--acc:#2563eb;--acc2:#1d4ed8;--txt:#1e293b;--mut:#64748b;--line:#e2e8f0;--card:#fff;--ok:#16a34a;--warn:#d97706;--bad:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,system-ui,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+a{color:var(--acc);text-decoration:none}
+#app{display:flex;min-height:100vh}
+#side{width:220px;background:var(--side);color:#cbd5e1;flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+#side h1{font-size:18px;color:#fff;margin:0;padding:18px 18px 14px;border-bottom:1px solid var(--side2)}
+#side nav a{display:flex;gap:10px;align-items:center;color:#cbd5e1;padding:11px 18px;border-left:3px solid transparent}
+#side nav a:hover{background:var(--side2);color:#fff}#side nav a.on{background:var(--side2);color:#fff;border-left-color:#60a5fa}
+#side .foot{margin-top:auto;padding:14px 18px;font-size:12px;border-top:1px solid var(--side2)}
+#wrap{flex:1;min-width:0;display:flex;flex-direction:column}
+#top{background:#fff;border-bottom:1px solid var(--line);padding:10px 22px;display:flex;gap:14px;align-items:center;position:sticky;top:0;z-index:20}
+#search{position:relative;flex:1;max-width:620px}
+#search input{width:100%;padding:10px 14px 10px 36px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#f8fafc}
+#search:before{content:"🔍";position:absolute;left:11px;top:9px;font-size:14px;opacity:.6}
+#sres{position:absolute;top:44px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px #0002;max-height:440px;overflow:auto;display:none}
+#sres div{padding:9px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer}#sres div:hover,#sres div.sel{background:#eff6ff}
+#sres small{color:var(--mut)}
+#sync{font-size:12px;color:var(--mut);white-space:nowrap}
+#main{padding:22px;max-width:1400px;width:100%}
+.btn{border:1px solid var(--line);background:#fff;color:var(--txt);padding:8px 13px;border-radius:7px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:#94a3b8}.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}.btn.p:hover{background:var(--acc2)}
+.btn.d{color:var(--bad)}.btn.s{padding:4px 8px;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+h2{margin:0 0 16px;font-size:21px}h3{margin:0 0 12px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}.kpi b{display:block;font-size:22px;margin-top:4px}.kpi span{color:var(--mut);font-size:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;background:#fff}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600;background:#f8fafc;position:sticky;top:0}
+tr.clk{cursor:pointer}tr.clk:hover td{background:#f8fafc}
+.tw{overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+.bdg{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#e2e8f0;color:#334155}
+.b-ok{background:#dcfce7;color:#166534}.b-warn{background:#fef3c7;color:#92400e}.b-bad{background:#fee2e2;color:#991b1b}.b-info{background:#dbeafe;color:#1e40af}
+.cp{cursor:pointer;border-bottom:1px dashed #cbd5e1}.cp:hover{background:#eff6ff;border-bottom-color:var(--acc)}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:2px 18px}
+.fld{padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:baseline}
+.fld label{color:var(--mut);font-size:12px;width:120px;flex-shrink:0}.fld .v{flex:1;word-break:break-word}
+.ic{cursor:pointer;opacity:.5;font-size:13px;border:none;background:none;padding:0 2px}.ic:hover{opacity:1}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.tabs a{padding:9px 14px;color:var(--mut);border-bottom:2px solid transparent;margin-bottom:-1px}.tabs a.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:600}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;width:100%;background:#fff}
+textarea{min-height:80px;resize:vertical}
+.filt{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.filt>*{width:auto;min-width:150px}
+#modal{position:fixed;inset:0;background:#0f172a80;display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:40px 10px}
+#modal .box{background:#fff;border-radius:12px;width:min(860px,100%);padding:22px}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}.form .full{grid-column:1/-1}
+.form label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;display:none;z-index:99;max-width:90vw}
+.drop{border:2px dashed #94a3b8;border-radius:10px;padding:26px;text-align:center;color:var(--mut);cursor:pointer;margin-bottom:14px}
+.drop.ov{border-color:var(--acc);background:#eff6ff;color:var(--acc)}
+.bar{height:10px;background:#dbeafe;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.banner{background:#fef3c7;border:1px solid #fcd34d;padding:10px 14px;border-radius:8px;margin-bottom:16px}
+.muted{color:var(--mut)}.right{text-align:right}.nowrap{white-space:nowrap}
+.jr{border-left:3px solid #bfdbfe;padding:6px 12px;margin:8px 0}.jr small{color:var(--mut)}
+code{background:#f1f5f9;padding:1px 5px;border-radius:4px}
+ol li{margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="app">
+ <aside id="side">
+  <h1>CRM GPC</h1>
+  <nav>
+   <a href="#/dashboard" data-n="dashboard">📊 Tableau de bord</a>
+   <a href="#/clients" data-n="clients">👥 Clients</a>
+   <a href="#/contrats" data-n="contrats">📄 Contrats</a>
+   <a href="#/sinistres" data-n="sinistres">⚠️ Sinistres</a>
+   <a href="#/taches" data-n="taches">✅ Tâches & échéances</a>
+   <a href="#/import" data-n="import">⇅ Import / Export</a>
+   <a href="#/parametres" data-n="parametres">⚙️ Paramètres</a>
+  </nav>
+  <div class="foot" id="acct">—</div>
+ </aside>
+ <div id="wrap">
+  <div id="top">
+   <div id="search"><input id="q" placeholder="Rechercher : nom, n° de contrat, référence, n° sinistre, SIRET, téléphone, email…" autocomplete="off"><div id="sres"></div></div>
+   <button class="btn p" onclick="editClient()">+ Client</button>
+   <span id="sync"></span>
+  </div>
+  <main id="main"></main>
+ </div>
+</div>
+<div id="modal"><div class="box" id="mbox"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ================= UTILITAIRES ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const digits=s=>String(s??'').replace(/\D/g,'');
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const fr=d=>{if(!d)return'';const x=d instanceof Date?d:new Date(d+'T00:00');return isNaN(x)?String(d):x.toLocaleDateString('fr-FR')};
+const iso=d=>{const x=new Date(d);return isNaN(x)?'':x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const num=v=>{if(v===''||v==null)return 0;const n=parseFloat(String(v).replace(/\s/g,'').replace('€','').replace(',','.'));return isNaN(n)?0:n};
+const eur=v=>(v===''||v==null)?'':num(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2200)}
+async function copyText(t){t=String(t??'');try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}toast('Copié : '+(t.length>50?t.slice(0,50)+'…':t))}
+const cp=(v,disp)=>v===''||v==null?'<span class="muted">—</span>':`<span class="cp" data-copy="${esc(v)}" title="Cliquer pour copier">${esc(disp??v)}</span>`;
+document.addEventListener('click',e=>{const c=e.target.closest('[data-copy]');if(c){e.stopPropagation();copyText(c.dataset.copy)}},true);
+function loadScript(urls){return new Promise((res,rej)=>{const tryN=i=>{if(i>=urls.length)return rej(new Error('Chargement impossible : '+urls[0]));const s=document.createElement('script');s.src=urls[i];s.onload=res;s.onerror=()=>{s.remove();tryN(i+1)};document.head.appendChild(s)};tryN(0)})}
+
+/* ================= LISTES DE RÉFÉRENCE ================= */
+const COMPAGNIES=['Abeille Vie','AIG','Airbag','Allianz','AMI3F','April','AREAS','Assurmax','AXA','BHL Développement (Accelerant)','Ergo','Generali','Kereis','Leader','Luxior','Malakoff Humanis','MALJ','Matrisk','Maxance','MMA','Solly Azar','Spring','Swiss Life','Tetris'];
+const BRANCHES=['Santé','Prévoyance','Multirisque professionnelle (MRP)','RC Professionnelle','RC Décennale','Dommage ouvrage','Habitation','Auto','Flotte auto','Auto entreprise','Emprunteur','Épargne / Retraite','Protection juridique','Autre'];
+const ST_CT=['En cours','En attente','Suspendu','Résilié','Sans effet'];
+const ST_SIN=['Ouvert','En expertise','En attente de pièces','Réglé','Clos','Refusé'];
+
+const F={
+ client:[
+  {k:'statut',l:'Statut',t:'select',o:['Client','Prospect','Ancien client']},
+  {k:'type',l:'Type',t:'select',o:['Professionnel','Particulier']},
+  {k:'reference',l:'Référence client'},
+  {k:'civilite',l:'Civilité',t:'select',o:['','M.','Mme','Société']},
+  {k:'nom',l:'Nom / Raison sociale',req:1},
+  {k:'prenom',l:'Prénom'},
+  {k:'formeJuridique',l:'Forme juridique'},
+  {k:'gerant',l:'Gérant / Contact'},
+  {k:'dateNaissance',l:'Date de naissance',t:'date'},
+  {k:'lieuNaissance',l:'Lieu de naissance'},
+  {k:'siret',l:'SIRET / SIREN'},
+  {k:'naf',l:'Code NAF'},
+  {k:'activite',l:'Activité'},
+  {k:'dateCreation',l:'Date de création',t:'date'},
+  {k:'adresse',l:'Adresse'},{k:'cp',l:'Code postal'},{k:'ville',l:'Ville'},
+  {k:'tel',l:'Téléphone'},{k:'tel2',l:'Téléphone 2'},{k:'email',l:'Email'},
+  {k:'iban',l:'IBAN'},{k:'bic',l:'BIC'},
+  {k:'origine',l:'Origine / Apporteur'},
+  {k:'notes',l:'Notes',t:'textarea',full:1}],
+ contrat:[
+  {k:'compagnie',l:'Compagnie',list:'dlComp',req:1},
+  {k:'intermediaire',l:'Intermédiaire / Grossiste'},
+  {k:'branche',l:'Branche',list:'dlBr'},
+  {k:'produit',l:'Produit / Formule'},
+  {k:'numero',l:'N° de contrat'},
+  {k:'reference',l:'Réf. devis / interne'},
+  {k:'dateEffet',l:"Date d'effet",t:'date'},
+  {k:'echeance',l:'Échéance principale',t:'date'},
+  {k:'dateResiliation',l:'Date de résiliation',t:'date'},
+  {k:'fractionnement',l:'Fractionnement',t:'select',o:['','Annuel','Semestriel','Trimestriel','Mensuel']},
+  {k:'primeTTC',l:'Prime annuelle TTC (€)',t:'number'},
+  {k:'primeHT',l:'Prime annuelle HT (€)',t:'number'},
+  {k:'tauxCom',l:'Taux de commission (%)',t:'number'},
+  {k:'commission',l:'Commission annuelle (€)',t:'number'},
+  {k:'fraisDossier',l:'Frais de dossier (€)',t:'number'},
+  {k:'statut',l:'Statut',t:'select',o:ST_CT},
+  {k:'notes',l:'Notes',t:'textarea',full:1}],
+ sinistre:[
+  {k:'contratId',l:'Contrat concerné',t:'contrat'},
+  {k:'numero',l:'N° de sinistre'},
+  {k:'dateSurvenance',l:'Date de survenance',t:'date'},
+  {k:'dateDeclaration',l:'Date de déclaration',t:'date'},
+  {k:'nature',l:'Nature (dégât des eaux, vol…)'},
+  {k:'gestionnaire',l:'Gestionnaire compagnie'},
+  {k:'expert',l:'Expert'},
+  {k:'montantEstime',l:'Montant estimé (€)',t:'number'},
+  {k:'montantRegle',l:'Montant réglé (€)',t:'number'},
+  {k:'statut',l:'Statut',t:'select',o:ST_SIN},
+  {k:'description',l:'Description / suivi',t:'textarea',full:1}],
+ tache:[
+  {k:'titre',l:'Tâche',req:1,full:1},
+  {k:'clientId',l:'Client',t:'client'},
+  {k:'echeance',l:'À faire pour le',t:'date'},
+  {k:'type',l:'Type',t:'select',o:['Relance','Appel','Email','RDV','Échéance contrat','Sinistre','Autre']},
+  {k:'priorite',l:'Priorité',t:'select',o:['Normale','Haute','Urgente']},
+  {k:'notes',l:'Notes',t:'textarea',full:1}]
+};
+
+/* ================= STOCKAGE (local ou OneDrive) ================= */
+const LKEY='crmgpc_data', CFG_ID='crmgpc_clientId';
+const ROOT='CRM_GPC', FILE=ROOT+'/crm-data.json';
+const SCOPES=['User.Read','Files.ReadWrite'];
+const empty=()=>({clients:[],contrats:[],sinistres:[],taches:[],deleted:{},v:1});
+let D=empty(), MODE='local', ETAG=null, saveT=null, saving=false, pending=false;
+let msalApp=null, account=null;
+
+function setSync(s){const m={ok:'✓ Enregistré',saving:'⟳ Enregistrement…',err:'⚠ Erreur d\'enregistrement',load:'⟳ Chargement…'};$('#sync').innerHTML=(MODE==='onedrive'?'☁ OneDrive · ':'💾 Local · ')+(m[s]||s)}
+function touch(o){o.updatedAt=Date.now();return o}
+function dirty(){pending=true;clearTimeout(saveT);saveT=setTimeout(save,700);setSync('saving')}
+function enc(p){return p.split('/').map(encodeURIComponent).join('/')}
+
+async function initMsal(){
+ const cid=localStorage.getItem(CFG_ID);if(!cid)return false;
+ if(!window.msal) await loadScript(['https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js','https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js']);
+ msalApp=new msal.PublicClientApplication({auth:{clientId:cid,authority:'https://login.microsoftonline.com/common',redirectUri:location.origin+location.pathname},cache:{cacheLocation:'localStorage'}});
+ if(msalApp.initialize) await msalApp.initialize();
+ const r=await msalApp.handleRedirectPromise();
+ account=r?r.account:(msalApp.getAllAccounts()[0]||null);
+ return !!account;
+}
+async function login(){if(!location.protocol.startsWith('http'))return alert("La connexion OneDrive nécessite que la page soit ouverte depuis une adresse web (https://… ou http://localhost), pas en double-cliquant sur le fichier. Voir Paramètres.");try{if(!msalApp)await initMsal();if(!msalApp)return alert('Renseignez d\'abord l\'ID d\'application.');await msalApp.loginRedirect({scopes:SCOPES,prompt:'select_account'})}catch(e){alert('Connexion impossible : '+e.message)}}
+async function logout(){if(msalApp&&account)await msalApp.logoutRedirect({account})}
+async function token(){try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}catch(e){await msalApp.acquireTokenRedirect({scopes:SCOPES,account})}}
+async function G(path,opt={}){const t=await token();return fetch(path.startsWith('http')?path:'https://graph.microsoft.com/v1.0'+path,{...opt,headers:{Authorization:'Bearer '+t,...(opt.headers||{})}})}
+
+function merge(a,b){const out=empty();out.deleted={...(a.deleted||{}),...(b.deleted||{})};
+ for(const k of ['clients','contrats','sinistres','taches']){const m=new Map();for(const x of [...(a[k]||[]),...(b[k]||[])]){const p=m.get(x.id);if(!p||(x.updatedAt||0)>(p.updatedAt||0))m.set(x.id,x)}out[k]=[...m.values()].filter(x=>!out.deleted[x.id])}return out}
+
+async function loadRemote(){
+ setSync('load');
+ const m=await G(`/me/drive/root:/${enc(FILE)}`);
+ if(m.status===404){ETAG=null;D=empty();return}
+ if(!m.ok)throw new Error('OneDrive '+m.status);
+ const meta=await m.json();ETAG=meta.eTag;
+ const r=await G(`/me/drive/items/${meta.id}/content`);D=Object.assign(empty(),await r.json());
+}
+async function uploadBig(path,blob,conflict='replace'){
+ const s=await G(`/me/drive/root:/${enc(path)}:/createUploadSession`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':conflict}})});
+ if(!s.ok)throw new Error('Session '+s.status);const {uploadUrl}=await s.json();const CH=327680*20;let r;
+ for(let i=0;i<blob.size;i+=CH){const part=blob.slice(i,Math.min(i+CH,blob.size));r=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Range':`bytes ${i}-${i+part.size-1}/${blob.size}`},body:part});if(!r.ok&&r.status!==202)throw new Error('Envoi '+r.status)}
+ return r.json();
+}
+async function save(){
+ if(saving){clearTimeout(saveT);saveT=setTimeout(save,500);return}
+ saving=true;pending=false;
+ try{
+  if(MODE==='local'){localStorage.setItem(LKEY,JSON.stringify(D));setSync('ok');return}
+  const body=JSON.stringify(D);let j;
+  if(body.length>3800000){j=await uploadBig(FILE,new Blob([body],{type:'application/json'}))}
+  else{const h={'Content-Type':'application/json'};if(ETAG)h['If-Match']=ETAG;
+   const r=await G(`/me/drive/root:/${enc(FILE)}:/content`,{method:'PUT',headers:h,body});
+   if(r.status===412){const mine=D;await loadRemote();D=merge(D,mine);saving=false;toast('Modifications d\'un autre poste fusionnées');route();return save()}
+   if(!r.ok)throw new Error(r.status);j=await r.json()}
+  ETAG=j.eTag;setSync('ok');
+  try{localStorage.setItem('crmgpc_backup',JSON.stringify(D))}catch(e){}
+ }catch(e){console.error(e);setSync('err');pending=true}
+ finally{saving=false}
+}
+window.addEventListener('focus',async()=>{if(MODE!=='onedrive'||pending||saving)return;try{const m=await G(`/me/drive/root:/${enc(FILE)}?select=eTag`);if(m.ok){const j=await m.json();if(j.eTag!==ETAG){await loadRemote();route();setSync('ok');toast('Données actualisées')}}}catch(e){}});
+window.addEventListener('beforeunload',e=>{if(pending||saving){e.preventDefault();e.returnValue=''}});
+
+/* ================= ACCÈS DONNÉES ================= */
+const cli=id=>D.clients.find(c=>c.id===id);
+const ctOf=id=>D.contrats.filter(c=>c.clientId===id);
+const sinOf=id=>D.sinistres.filter(s=>s.clientId===id);
+const tkOf=id=>D.taches.filter(t=>t.clientId===id);
+const cname=c=>c?[c.nom,c.prenom].filter(Boolean).join(' '):'(client supprimé)';
+function remove(coll,id){D[coll]=D[coll].filter(x=>x.id!==id);D.deleted[id]=Date.now();dirty()}
+function nextEch(c){if(!c.echeance)return null;const d=new Date(c.echeance+'T00:00');if(isNaN(d))return null;const t=today();while(d<t)d.setFullYear(d.getFullYear()+1);return d}
+const daysTo=d=>Math.round((d-today())/864e5);
+const active=c=>(c.statut||'En cours')==='En cours';
+function bStat(s){const m={'En cours':'b-ok','Client':'b-ok','Prospect':'b-info','Résilié':'b-bad','Ancien client':'b-bad','Sans effet':'b-bad','Suspendu':'b-warn','En attente':'b-warn','Ouvert':'b-warn','En expertise':'b-warn','En attente de pièces':'b-warn','Réglé':'b-ok','Clos':'b-ok','Refusé':'b-bad','Urgente':'b-bad','Haute':'b-warn'};return s?`<span class="bdg ${m[s]||''}">${esc(s)}</span>`:''}
+
+/* ================= RECHERCHE GLOBALE ================= */
+function searchAll(q,max=15){
+ const n=norm(q),dg=digits(q);if(n.length<2)return[];const out=[];
+ const hit=(...v)=>v.some(x=>x&&norm(x).includes(n));
+ for(const c of D.clients){if(hit(cname(c),c.prenom+' '+c.nom,c.reference,c.siret,c.email,c.ville,c.gerant)||(dg.length>=4&&(digits(c.tel).includes(dg)||digits(c.tel2).includes(dg)||digits(c.siret).includes(dg))))out.push({t:'Client',l:cname(c),s:[c.reference,c.ville,c.tel].filter(Boolean).join(' · '),h:'#/client/'+c.id})}
+ for(const k of D.contrats){if(hit(k.numero,k.reference,k.produit)){const c=cli(k.clientId);out.push({t:'Contrat',l:(k.numero||k.reference)+' — '+cname(c),s:[k.compagnie,k.branche].filter(Boolean).join(' · '),h:'#/client/'+k.clientId+'/contrats'})}}
+ for(const s of D.sinistres){if(hit(s.numero,s.nature)){const c=cli(s.clientId);out.push({t:'Sinistre',l:(s.numero||s.nature)+' — '+cname(c),s:s.statut||'',h:'#/client/'+s.clientId+'/sinistres'})}}
+ return out.slice(0,max);
+}
+let selI=-1;
+$('#q').addEventListener('input',()=>{const r=searchAll($('#q').value);selI=-1;const b=$('#sres');
+ b.innerHTML=r.length?r.map((x,i)=>`<div data-h="${x.h}"><span class="bdg">${x.t}</span> <b>${esc(x.l)}</b><br><small>${esc(x.s)}</small></div>`).join(''):($('#q').value.length>1?'<div class="muted">Aucun résultat</div>':'');b.style.display=b.innerHTML?'block':'none'});
+$('#q').addEventListener('keydown',e=>{const it=[...$('#sres').querySelectorAll('[data-h]')];
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();selI=Math.max(0,Math.min(it.length-1,selI+(e.key==='ArrowDown'?1:-1)));it.forEach((x,i)=>x.classList.toggle('sel',i===selI))}
+ if(e.key==='Enter'){if(it[selI>=0?selI:0]&&it.length===1||selI>=0){location.hash=it[selI>=0?selI:0].dataset.h}else{location.hash='#/clients?q='+encodeURIComponent($('#q').value)}$('#sres').style.display='none'}
+ if(e.key==='Escape')$('#sres').style.display='none'});
+$('#sres').addEventListener('click',e=>{const d=e.target.closest('[data-h]');if(d){location.hash=d.dataset.h;$('#sres').style.display='none';$('#q').value=''}});
+document.addEventListener('click',e=>{if(!e.target.closest('#search'))$('#sres').style.display='none'});
+
+/* ================= FORMULAIRES ================= */
+function modal(html){$('#mbox').innerHTML=html;$('#modal').style.display='flex';const f=$('#mbox').querySelector('input,select,textarea');f&&f.focus()}
+function closeModal(){$('#modal').style.display='none'}
+$('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+function fieldHtml(f,v,ctx){v=v??'';let i;
+ if(f.t==='select')i=`<select name="${f.k}">${f.o.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+ else if(f.t==='textarea')i=`<textarea name="${f.k}">${esc(v)}</textarea>`;
+ else if(f.t==='contrat')i=`<select name="${f.k}"><option value="">—</option>${ctOf(ctx.clientId).map(c=>`<option value="${c.id}" ${c.id===v?'selected':''}>${esc([c.compagnie,c.branche,c.numero].filter(Boolean).join(' · '))}</option>`).join('')}</select>`;
+ else if(f.t==='client')i=`<select name="${f.k}"><option value="">— Aucun —</option>${[...D.clients].sort((a,b)=>cname(a).localeCompare(cname(b))).map(c=>`<option value="${c.id}" ${c.id===v?'selected':''}>${esc(cname(c))}</option>`).join('')}</select>`;
+ else i=`<input name="${f.k}" type="${f.t==='number'?'text':f.t||'text'}" ${f.t==='number'?'inputmode="decimal"':''} value="${esc(v)}" ${f.list?`list="${f.list}"`:''} ${f.req?'required':''}>`;
+ return `<div class="${f.full?'full':''}"><label>${esc(f.l)}${f.req?' *':''}</label>${i}</div>`}
+function formModal(title,kind,obj,ctx,onSave){
+ modal(`<h3>${esc(title)}</h3><form id="frm" class="form">${F[kind].map(f=>fieldHtml(f,obj[f.k],ctx)).join('')}
+ <datalist id="dlComp">${COMPAGNIES.map(c=>`<option>${c}</option>`).join('')}</datalist><datalist id="dlBr">${BRANCHES.map(c=>`<option>${c}</option>`).join('')}</datalist>
+ <div class="full row"><span class="sp"></span><button type="button" class="btn" onclick="closeModal()">Annuler</button><button class="btn p">Enregistrer</button></div></form>`);
+ $('#frm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target);const o={...obj};for(const f of F[kind])o[f.k]=(fd.get(f.k)??'').toString().trim();onSave(touch(o));closeModal();dirty();route()}}
+
+function editClient(id){const o=id?cli(id):{id:uid(),statut:'Client',type:'Professionnel',createdAt:Date.now(),journal:[]};
+ formModal(id?'Modifier le client':'Nouveau client','client',o,{},x=>{
+  if(!id){const dup=D.clients.find(c=>norm(cname(c))===norm(cname(x)));if(dup&&!confirm('Un client « '+cname(dup)+' » existe déjà. Créer quand même ?'))return;D.clients.push(x);location.hash='#/client/'+x.id}
+  else Object.assign(cli(id),x)})}
+function editContrat(id,clientId){let o=id?D.contrats.find(c=>c.id===id):{id:uid(),clientId,statut:'En cours'};
+ if(!o.clientId){return pickClient(cid=>editContrat(null,cid))}
+ formModal(id?'Modifier le contrat':'Nouveau contrat — '+cname(cli(o.clientId)),'contrat',o,{},x=>{
+  if(!num(x.commission)&&num(x.tauxCom)){const base=num(x.primeHT)||num(x.primeTTC);if(base)x.commission=(base*num(x.tauxCom)/100).toFixed(2)}
+  if(id)Object.assign(o,x);else D.contrats.push(x)})}
+function editSinistre(id,clientId){let o=id?D.sinistres.find(c=>c.id===id):{id:uid(),clientId,statut:'Ouvert',dateDeclaration:iso(new Date())};
+ if(!o.clientId){return pickClient(cid=>editSinistre(null,cid))}
+ formModal(id?'Modifier le sinistre':'Nouveau sinistre — '+cname(cli(o.clientId)),'sinistre',o,{clientId:o.clientId},x=>{if(id)Object.assign(o,x);else D.sinistres.push(x)})}
+function editTache(id,clientId,preset={}){let o=id?D.taches.find(c=>c.id===id):{id:uid(),clientId:clientId||'',priorite:'Normale',type:'Relance',echeance:iso(new Date()),fait:false,...preset};
+ formModal(id?'Modifier la tâche':'Nouvelle tâche','tache',o,{},x=>{if(id)Object.assign(o,x);else D.taches.push(x)})}
+function pickClient(cb){modal(`<h3>Choisir le client</h3><input id="pk" placeholder="Tapez un nom, une référence…"><div id="pkr" style="max-height:360px;overflow:auto;margin-top:10px"></div>`);
+ const r=()=>{const n=norm($('#pk').value);$('#pkr').innerHTML=D.clients.filter(c=>!n||norm(cname(c)+' '+c.reference).includes(n)).slice(0,40).map(c=>`<div class="fld" style="cursor:pointer" data-id="${c.id}"><b>${esc(cname(c))}</b> <span class="muted">${esc(c.reference||'')}</span></div>`).join('')||'<p class="muted">Aucun client</p>'};
+ $('#pk').oninput=r;r();$('#pkr').onclick=e=>{const d=e.target.closest('[data-id]');if(d){closeModal();cb(d.dataset.id)}}}
+function del(coll,id,label){if(confirm('Supprimer '+label+' ?')){remove(coll,id);route()}}
+function delClient(id){const c=cli(id);if(!confirm(`Supprimer ${cname(c)} et ses ${ctOf(id).length} contrat(s), sinistres et tâches ?\n(Les pièces jointes restent dans OneDrive.)`))return;
+ for(const k of ['contrats','sinistres','taches'])D[k].filter(x=>x.clientId===id).forEach(x=>{D.deleted[x.id]=Date.now()});
+ D.contrats=D.contrats.filter(x=>x.clientId!==id);D.sinistres=D.sinistres.filter(x=>x.clientId!==id);D.taches=D.taches.filter(x=>x.clientId!==id);remove('clients',id);location.hash='#/clients'}
+function toggleTache(id){const t=D.taches.find(x=>x.id===id);t.fait=!t.fait;touch(t);dirty();route()}
+
+/* ================= COPIER / COLLER ================= */
+function clientLines(c){return F.client.filter(f=>f.k!=='notes'&&c[f.k]).map(f=>[f.l,f.t==='date'?fr(c[f.k]):c[f.k]])}
+function copyFiche(id){const c=cli(id);let t=clientLines(c).map(([l,v])=>l+' : '+v).join('\n');
+ const cts=ctOf(id);if(cts.length)t+='\n\nContrats :\n'+cts.map(k=>'- '+[k.compagnie,k.branche,k.numero&&'n° '+k.numero,k.statut].filter(Boolean).join(' · ')).join('\n');copyText(t)}
+function copyTSV(id){const c=cli(id);const L=clientLines(c);copyText(L.map(x=>x[0]).join('\t')+'\n'+L.map(x=>x[1]).join('\t'))}
+function panneau(id){const c=cli(id);const w=window.open('','copieGPC','width=420,height=760,left='+(screen.availWidth-440)+',top=40');if(!w)return alert('Autorisez les fenêtres pop-up pour ce site.');
+ const rows=clientLines(c).map(([l,v])=>({l,v}));
+ const adr=[c.adresse,[c.cp,c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');if(adr)rows.push({l:'Adresse complète',v:adr});
+ ctOf(id).forEach(k=>{if(k.numero)rows.push({l:'N° contrat '+(k.compagnie||''),v:k.numero});if(k.dateEffet)rows.push({l:'Date d\'effet '+(k.compagnie||''),v:fr(k.dateEffet)})});
+ w.document.open();w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Copie — ${esc(cname(c))}</title><style>body{font-family:Segoe UI,Arial;margin:0;background:#f3f5f9;font-size:13px}h3{margin:0;padding:12px 14px;background:#14213d;color:#fff;font-size:15px}p{margin:8px 14px;color:#64748b;font-size:12px}button{display:block;width:calc(100% - 20px);margin:6px 10px;text-align:left;border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:8px 10px;cursor:pointer;font:inherit}button:hover{border-color:#2563eb;background:#eff6ff}button small{display:block;color:#64748b;font-size:11px}button.ok{background:#dcfce7;border-color:#16a34a}</style></head><body><h3>${esc(cname(c))}</h3><p>Cliquez une ligne pour la copier, puis Ctrl+V dans le formulaire de l'extranet.</p>${rows.map(r=>`<button data-v="${esc(r.v)}"><small>${esc(r.l)}</small>${esc(r.v)}</button>`).join('')}</body></html>`);w.document.close();
+ w.document.body.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;const v=b.dataset.v;try{await w.navigator.clipboard.writeText(v)}catch(_){const a=w.document.createElement('textarea');a.value=v;w.document.body.appendChild(a);a.select();w.document.execCommand('copy');a.remove()}w.document.querySelectorAll('.ok').forEach(x=>x.classList.remove('ok'));b.classList.add('ok')})}
+
+/* ================= PIÈCES JOINTES (OneDrive) ================= */
+function pjFolder(c){if(!c.pjFolder){c.pjFolder=(cname(c).replace(/[\\/:*?"<>|#%]/g,'').trim().slice(0,60)||'client')+'_'+c.id.slice(-5);touch(c);dirty()}return ROOT+'/Pieces_jointes/'+c.pjFolder}
+async function listPJ(id){const box=$('#pjlist');if(!box)return;
+ if(MODE!=='onedrive'){box.innerHTML='<p class="muted">Connectez OneDrive (Paramètres) pour déposer et consulter les pièces jointes.</p>';return}
+ box.innerHTML='<p class="muted">Chargement…</p>';
+ try{const r=await G(`/me/drive/root:/${enc(pjFolder(cli(id)))}:/children?$top=500&$orderby=lastModifiedDateTime desc`);
+  if(r.status===404){box.innerHTML='<p class="muted">Aucune pièce jointe.</p>';return}
+  const j=await r.json();const it=(j.value||[]).filter(x=>x.file);
+  box.innerHTML=it.length?`<div class="tw"><table><tr><th>Fichier</th><th>Taille</th><th>Modifié le</th><th></th></tr>${it.map(f=>`<tr><td><a href="${esc(f.webUrl)}" target="_blank">📎 ${esc(f.name)}</a></td><td class="nowrap">${(f.size/1024).toFixed(0)} Ko</td><td class="nowrap">${fr(new Date(f.lastModifiedDateTime))}</td><td class="right nowrap"><a class="btn s" href="${esc(f['@microsoft.graph.downloadUrl']||f.webUrl)}">⬇</a> <button class="btn s" data-copy="${esc(f.webUrl)}" title="Copier le lien">🔗</button> <button class="btn s d" onclick="delPJ('${f.id}','${id}')">✕</button></td></tr>`).join('')}</table></div>`:'<p class="muted">Aucune pièce jointe.</p>'}
+ catch(e){box.innerHTML='<p class="muted">Erreur : '+esc(e.message)+'</p>'}}
+async function uploadPJ(id,files){if(MODE!=='onedrive')return alert('Connectez OneDrive dans Paramètres pour déposer des fichiers.');
+ const folder=pjFolder(cli(id));for(const f of files){toast('Envoi de '+f.name+'…');
+  try{if(f.size<4e6){const r=await G(`/me/drive/root:/${enc(folder+'/'+f.name)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:'PUT',body:f});if(!r.ok)throw new Error(r.status)}else await uploadBig(folder+'/'+f.name,f,'rename')}
+  catch(e){alert('Échec envoi '+f.name+' : '+e.message)}}
+ toast(files.length+' fichier(s) déposé(s)');listPJ(id)}
+async function delPJ(itemId,id){if(!confirm('Supprimer ce fichier de OneDrive ?'))return;await G('/me/drive/items/'+itemId,{method:'DELETE'});listPJ(id)}
+async function openFolder(id){if(MODE!=='onedrive')return;const r=await G(`/me/drive/root:/${enc(pjFolder(cli(id)))}`);if(r.ok){window.open((await r.json()).webUrl,'_blank')}else toast('Dossier vide pour l\'instant')}
+
+/* ================= VUES ================= */
+const V={};
+V.dashboard=()=>{
+ const ca=D.contrats.filter(active),cl=D.clients.filter(c=>c.statut==='Client').length,pr=D.clients.filter(c=>c.statut==='Prospect').length;
+ const prime=ca.reduce((s,c)=>s+num(c.primeTTC),0),com=ca.reduce((s,c)=>s+num(c.commission),0);
+ const sinO=D.sinistres.filter(s=>!['Réglé','Clos','Refusé'].includes(s.statut));
+ const tk=D.taches.filter(t=>!t.fait&&t.echeance&&new Date(t.echeance+'T00:00')<=today());
+ const byC={};ca.forEach(c=>{const k=c.compagnie||'(non renseignée)';byC[k]=byC[k]||{n:0,com:0,p:0};byC[k].n++;byC[k].com+=num(c.commission);byC[k].p+=num(c.primeTTC)});
+ const comp=Object.entries(byC).sort((a,b)=>b[1].com-a[1].com||b[1].n-a[1].n);const mx=Math.max(1,...comp.map(x=>x[1].com));
+ const ech=ca.map(c=>({c,d:nextEch(c)})).filter(x=>x.d&&daysTo(x.d)<=75).sort((a,b)=>a.d-b.d);
+ return `<h2>Tableau de bord</h2>${!D.clients.length?`<div class="card"><h3>Premier démarrage</h3><p>Chargez votre portefeuille : sélectionnez le fichier <b>crm-data.json</b> (dossier CRM_GPC).</p><input type="file" accept=".json" style="width:auto" onchange="this.files[0]&&restoreJSON(this.files[0])"></div>`:''}${MODE==='local'?'<div class="banner">Données enregistrées sur ce navigateur uniquement. <a href="#/parametres">Connecter OneDrive</a> pour les stocker dans le cloud et déposer des pièces jointes.</div>':''}
+ <div class="kpis"><div class="kpi"><span>Clients</span><b>${cl}</b></div><div class="kpi"><span>Prospects</span><b>${pr}</b></div><div class="kpi"><span>Contrats en cours</span><b>${ca.length}</b></div>
+ <div class="kpi"><span>Primes TTC annuelles</span><b>${eur(prime)}</b></div><div class="kpi"><span>Commissions annuelles</span><b>${eur(com)}</b></div>
+ <div class="kpi"><span>Sinistres ouverts</span><b>${sinO.length}</b></div><div class="kpi"><span>Tâches en retard / du jour</span><b style="color:${tk.length?'var(--bad)':''}">${tk.length}</b></div></div>
+ <div class="grid2"><div class="card"><h3>Par compagnie (contrats en cours)</h3>${comp.length?`<table><tr><th>Compagnie</th><th class="right">Contrats</th><th class="right">Commissions</th><th style="width:30%"></th></tr>${comp.map(([k,v])=>`<tr class="clk" onclick="location.hash='#/contrats?comp=${encodeURIComponent(k)}'"><td>${esc(k)}</td><td class="right">${v.n}</td><td class="right nowrap">${eur(v.com)}</td><td><div class="bar"><i style="width:${v.com/mx*100}%"></i></div></td></tr>`).join('')}</table>`:'<p class="muted">Aucun contrat.</p>'}</div>
+ <div><div class="card"><h3>Échéances à venir (75 jours)</h3>${ech.length?`<table><tr><th>Échéance</th><th>Client</th><th>Contrat</th><th></th></tr>${ech.slice(0,25).map(({c,d})=>{const n=daysTo(d);return `<tr><td class="nowrap">${fr(d)} <span class="bdg ${n<=60?'b-warn':''}">J-${n}</span></td><td><a href="#/client/${c.clientId}">${esc(cname(cli(c.clientId)))}</a></td><td>${esc(c.compagnie||'')} ${cp(c.numero)}</td><td><button class="btn s" onclick="editTache(null,'${c.clientId}',{titre:'Échéance ${esc((c.compagnie||'').replace(/'/g,''))} ${esc((c.numero||'').replace(/'/g,''))} au ${fr(d)}',type:'Échéance contrat'})">+ tâche</button></td></tr>`}).join('')}</table><p class="muted" style="font-size:12px">Badge orange : moins de 2 mois (délai de préavis usuel).</p>`:'<p class="muted">Aucune échéance renseignée dans les 75 jours.</p>'}</div>
+ <div class="card"><h3>Tâches en retard / du jour</h3>${tk.length?tk.map(t=>`<div class="fld"><input type="checkbox" style="width:auto" onchange="toggleTache('${t.id}')"><span class="v">${esc(t.titre)} ${t.clientId?`— <a href="#/client/${t.clientId}">${esc(cname(cli(t.clientId)))}</a>`:''}</span>${bStat(t.priorite)}<span class="muted nowrap">${fr(t.echeance)}</span></div>`).join(''):'<p class="muted">Rien en retard 👍</p>'}</div></div></div>`};
+
+V.clients=(p)=>{const q=p.get('q')||'',st=p.get('st')||'',ty=p.get('ty')||'';const n=norm(q),dg=digits(q);
+ let L=D.clients.filter(c=>(!st||c.statut===st)&&(!ty||c.type===ty)&&(!n||norm([cname(c),c.reference,c.siret,c.email,c.ville,c.gerant].join(' ')).includes(n)||(dg.length>=4&&digits(c.tel+' '+c.siret).includes(dg))||ctOf(c.id).some(k=>norm(k.numero+' '+k.reference).includes(n))));
+ L.sort((a,b)=>cname(a).localeCompare(cname(b)));const lim=+(p.get('lim')||200);
+ const qs=(o)=>{const x=new URLSearchParams(p);for(const k in o)o[k]?x.set(k,o[k]):x.delete(k);return '#/clients?'+x};
+ return `<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Clients <span class="muted">(${L.length})</span></h2><span class="sp"></span><button class="btn" onclick="exportXLSX(${JSON.stringify(L.map(c=>c.id)).replace(/"/g,"'")})">⬇ Exporter la liste</button><button class="btn p" onclick="editClient()">+ Client</button></div>
+ <div class="filt"><input id="fq" placeholder="Filtrer…" value="${esc(q)}" onkeydown="if(event.key==='Enter')location.hash='${qs({q:''})}&q='+encodeURIComponent(this.value)">
+ <select onchange="location.hash=this.value"><option value="${qs({st:''})}">Tous statuts</option>${['Client','Prospect','Ancien client'].map(s=>`<option value="${qs({st:s})}" ${s===st?'selected':''}>${s}</option>`).join('')}</select>
+ <select onchange="location.hash=this.value"><option value="${qs({ty:''})}">Tous types</option>${['Professionnel','Particulier'].map(s=>`<option value="${qs({ty:s})}" ${s===ty?'selected':''}>${s}</option>`).join('')}</select></div>
+ <div class="tw"><table><tr><th>Nom / Raison sociale</th><th>Réf.</th><th>Ville</th><th>Téléphone</th><th>Email</th><th class="right">Contrats</th><th class="right">Comm. /an</th><th>Statut</th></tr>
+ ${L.slice(0,lim).map(c=>{const k=ctOf(c.id).filter(active);return `<tr class="clk" onclick="location.hash='#/client/${c.id}'"><td><b>${esc(cname(c))}</b><br><small class="muted">${esc(c.type||'')}${c.activite?' · '+esc(c.activite):''}</small></td><td>${cp(c.reference)}</td><td>${esc(c.ville||'')}</td><td class="nowrap">${cp(c.tel)}</td><td>${cp(c.email)}</td><td class="right">${k.length}</td><td class="right nowrap">${eur(k.reduce((s,x)=>s+num(x.commission),0))}</td><td>${bStat(c.statut)}</td></tr>`}).join('')||'<tr><td colspan="8" class="muted">Aucun client. Créez-en un ou importez votre Excel (Import / Export).</td></tr>'}</table></div>
+ ${L.length>lim?`<p><a class="btn" href="${qs({lim:lim+300})}">Afficher plus (${L.length-lim} restants)</a></p>`:''}`};
+
+V.client=(p,id,tab='infos')=>{const c=cli(id);if(!c)return '<p>Client introuvable.</p>';
+ const cts=ctOf(id),sins=sinOf(id),tks=tkOf(id);const T=(k,l)=>`<a href="#/client/${id}/${k}" class="${tab===k?'on':''}">${l}</a>`;
+ let body='';
+ if(tab==='infos')body=`<div class="card"><div class="fields">${F.client.filter(f=>f.k!=='notes').map(f=>`<div class="fld"><label>${esc(f.l)}</label><span class="v">${cp(f.t==='date'?fr(c[f.k]):c[f.k])}</span></div>`).join('')}</div>${c.notes?`<h3 style="margin-top:16px">Notes</h3><div style="white-space:pre-wrap">${esc(c.notes)}</div>`:''}</div>`;
+ if(tab==='contrats')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editContrat(null,'${id}')">+ Contrat</button></div>${ctTable(cts,false)}`;
+ if(tab==='sinistres')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editSinistre(null,'${id}')">+ Sinistre</button></div>${sinTable(sins,false)}`;
+ if(tab==='taches')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editTache(null,'${id}')">+ Tâche</button></div>${tkTable(tks,false)}`;
+ if(tab==='docs'){body=`<div class="drop" id="drop">📂 Glissez-déposez vos fichiers ici (CNI, Kbis, CP, devis, RIB…) ou <u>cliquez pour choisir</u><input type="file" id="fin" multiple hidden></div><div class="row" style="margin-bottom:10px"><span class="muted">Stockés dans OneDrive › ${esc(ROOT)}/Pieces_jointes</span><span class="sp"></span><button class="btn" onclick="openFolder('${id}')">Ouvrir le dossier OneDrive</button><button class="btn" onclick="listPJ('${id}')">⟳</button></div><div id="pjlist"></div>`;setTimeout(()=>{const d=$('#drop'),fi=$('#fin');d.onclick=()=>fi.click();fi.onchange=()=>uploadPJ(id,[...fi.files]);d.ondragover=e=>{e.preventDefault();d.classList.add('ov')};d.ondragleave=()=>d.classList.remove('ov');d.ondrop=e=>{e.preventDefault();d.classList.remove('ov');uploadPJ(id,[...e.dataTransfer.files])};listPJ(id)})}
+ if(tab==='journal')body=`<div class="card"><textarea id="jt" placeholder="Note d'appel, échange, info…"></textarea><div class="row" style="margin-top:8px"><span class="sp"></span><button class="btn p" onclick="addJ('${id}')">Ajouter au journal</button></div></div>${(c.journal||[]).slice().reverse().map((j,i)=>`<div class="jr"><small>${new Date(j.d).toLocaleString('fr-FR')}</small><div style="white-space:pre-wrap">${esc(j.t)}</div></div>`).join('')||'<p class="muted">Journal vide.</p>'}`;
+ return `<div class="row" style="margin-bottom:6px"><a href="#/clients">← Clients</a></div>
+ <div class="row" style="margin-bottom:14px"><h2 style="margin:0">${cp(cname(c))}</h2>${bStat(c.statut)}<span class="bdg">${esc(c.type||'')}</span>${c.reference?`<span class="muted">Réf. ${cp(c.reference)}</span>`:''}<span class="sp"></span>
+ <button class="btn" onclick="panneau('${id}')" title="Petite fenêtre à placer à côté de l'extranet">📋 Panneau de copie</button><button class="btn" onclick="copyFiche('${id}')">Copier la fiche</button><button class="btn" onclick="copyTSV('${id}')" title="Pour coller dans Excel / Google Sheets">Copier pour tableur</button><button class="btn" onclick="editClient('${id}')">✎ Modifier</button><button class="btn d" onclick="delClient('${id}')">Supprimer</button></div>
+ <div class="tabs">${T('infos','Informations')}${T('contrats','Contrats ('+cts.length+')')}${T('sinistres','Sinistres ('+sins.length+')')}${T('taches','Tâches ('+tks.filter(t=>!t.fait).length+')')}${T('docs','Pièces jointes')}${T('journal','Journal ('+(c.journal||[]).length+')')}</div>${body}`};
+function addJ(id){const t=$('#jt').value.trim();if(!t)return;const c=cli(id);c.journal=c.journal||[];c.journal.push({d:Date.now(),t});touch(c);dirty();route()}
+
+function ctTable(L,showCli){return `<div class="tw"><table><tr>${showCli?'<th>Client</th>':''}<th>Compagnie</th><th>Branche / produit</th><th>N° contrat</th><th>Effet</th><th>Échéance</th><th class="right">Prime TTC</th><th class="right">Comm.</th><th>Statut</th><th></th></tr>
+ ${L.map(k=>`<tr>${showCli?`<td><a href="#/client/${k.clientId}/contrats">${esc(cname(cli(k.clientId)))}</a></td>`:''}<td>${esc(k.compagnie||'')}${k.intermediaire?`<br><small class="muted">via ${esc(k.intermediaire)}</small>`:''}</td><td>${esc(k.branche||'')}${k.produit?`<br><small class="muted">${esc(k.produit)}</small>`:''}</td><td>${cp(k.numero)}${k.reference?`<br><small class="muted">réf. ${cp(k.reference)}</small>`:''}</td><td class="nowrap">${cp(fr(k.dateEffet))}</td><td class="nowrap">${fr(k.echeance)}</td><td class="right nowrap">${eur(k.primeTTC)}</td><td class="right nowrap">${eur(k.commission)}</td><td>${bStat(k.statut)}</td><td class="right nowrap"><button class="btn s" onclick="editContrat('${k.id}')">✎</button> <button class="btn s d" onclick="del('contrats','${k.id}','ce contrat')">✕</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Aucun contrat.</td></tr>'}</table></div>`}
+function sinTable(L,showCli){return `<div class="tw"><table><tr>${showCli?'<th>Client</th>':''}<th>N° sinistre</th><th>Contrat</th><th>Survenance</th><th>Nature</th><th>Gestionnaire</th><th class="right">Estimé</th><th class="right">Réglé</th><th>Statut</th><th></th></tr>
+ ${L.map(s=>{const k=D.contrats.find(x=>x.id===s.contratId);return `<tr>${showCli?`<td><a href="#/client/${s.clientId}/sinistres">${esc(cname(cli(s.clientId)))}</a></td>`:''}<td>${cp(s.numero)}</td><td>${k?esc(k.compagnie||'')+' '+cp(k.numero):''}</td><td class="nowrap">${cp(fr(s.dateSurvenance))}</td><td>${esc(s.nature||'')}${s.description?`<br><small class="muted">${esc(s.description.slice(0,90))}</small>`:''}</td><td>${esc(s.gestionnaire||'')}</td><td class="right nowrap">${eur(s.montantEstime)}</td><td class="right nowrap">${eur(s.montantRegle)}</td><td>${bStat(s.statut)}</td><td class="right nowrap"><button class="btn s" onclick="editSinistre('${s.id}')">✎</button> <button class="btn s d" onclick="del('sinistres','${s.id}','ce sinistre')">✕</button></td></tr>`}).join('')||'<tr><td colspan="10" class="muted">Aucun sinistre.</td></tr>'}</table></div>`}
+function tkTable(L,showCli){L=[...L].sort((a,b)=>(a.fait-b.fait)||String(a.echeance).localeCompare(String(b.echeance)));
+ return `<div class="tw"><table><tr><th></th><th>Tâche</th>${showCli?'<th>Client</th>':''}<th>Pour le</th><th>Type</th><th>Priorité</th><th></th></tr>
+ ${L.map(t=>{const late=!t.fait&&t.echeance&&new Date(t.echeance+'T00:00')<today();return `<tr style="${t.fait?'opacity:.5':''}"><td><input type="checkbox" style="width:auto" ${t.fait?'checked':''} onchange="toggleTache('${t.id}')"></td><td>${t.fait?'<s>':''}${esc(t.titre)}${t.fait?'</s>':''}${t.notes?`<br><small class="muted">${esc(t.notes)}</small>`:''}</td>${showCli?`<td>${t.clientId?`<a href="#/client/${t.clientId}/taches">${esc(cname(cli(t.clientId)))}</a>`:''}</td>`:''}<td class="nowrap" style="${late?'color:var(--bad);font-weight:600':''}">${fr(t.echeance)}</td><td>${esc(t.type||'')}</td><td>${bStat(t.priorite)}</td><td class="right nowrap"><button class="btn s" onclick="editTache('${t.id}')">✎</button> <button class="btn s d" onclick="del('taches','${t.id}','cette tâche')">✕</button></td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Aucune tâche.</td></tr>'}</table></div>`}
+
+V.contrats=(p)=>{const comp=p.get('comp')||'',br=p.get('br')||'',st=p.get('st')??'En cours',q=norm(p.get('q')||'');
+ const L=D.contrats.filter(k=>(!comp||(k.compagnie||'(non renseignée)')===comp)&&(!br||k.branche===br)&&(!st||(k.statut||'En cours')===st)&&(!q||norm([k.numero,k.reference,k.produit,cname(cli(k.clientId))].join(' ')).includes(q)));
+ const qs=o=>{const x=new URLSearchParams(p);for(const k in o)x.set(k,o[k]);return '#/contrats?'+x};
+ const comps=[...new Set(D.contrats.map(k=>k.compagnie||'(non renseignée)'))].sort(),brs=[...new Set(D.contrats.map(k=>k.branche).filter(Boolean))].sort();
+ return `<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Contrats <span class="muted">(${L.length})</span></h2><span class="sp"></span><span class="muted">Primes : <b>${eur(L.reduce((s,k)=>s+num(k.primeTTC),0))}</b> · Commissions : <b>${eur(L.reduce((s,k)=>s+num(k.commission),0))}</b></span><button class="btn" onclick="exportContrats(${JSON.stringify(L.map(k=>k.id)).replace(/"/g,"'")})">⬇ Exporter</button><button class="btn p" onclick="editContrat()">+ Contrat</button></div>
+ <div class="filt"><input placeholder="N° contrat, réf., client…" value="${esc(p.get('q')||'')}" onkeydown="if(event.key==='Enter')location.hash='${qs({q:''})}'.replace('q=','q='+encodeURIComponent(this.value))">
+ <select onchange="location.hash=this.value"><option value="${qs({comp:''})}">Toutes compagnies</option>${comps.map(s=>`<option value="${qs({comp:s})}" ${s===comp?'selected':''}>${esc(s)}</option>`).join('')}</select>
+ <select onchange="location.hash=this.value"><option value="${qs({br:''})}">Toutes branches</option>${brs.map(s=>`<option value="${qs({br:s})}" ${s===br?'selected':''}>${esc(s)}</option>`).join('')}</select>
+ <select onchange="location.hash=this.value"><option value="${qs({st:''})}">Tous statuts</option>${ST_CT.map(s=>`<option value="${qs({st:s})}" ${s===st?'selected':''}>${s}</option>`).join('')}</select></div>${ctTable(L.slice(0,500),true)}`};
+V.sinistres=(p)=>{const st=p.get('st')||'';const L=D.sinistres.filter(s=>!st||(st==='ouverts'?!['Réglé','Clos','Refusé'].includes(s.statut):s.statut===st));
+ return `<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Sinistres <span class="muted">(${L.length})</span></h2><span class="sp"></span><select style="width:auto" onchange="location.hash='#/sinistres?st='+encodeURIComponent(this.value)"><option value="">Tous</option><option value="ouverts" ${st==='ouverts'?'selected':''}>Non clos</option>${ST_SIN.map(s=>`<option ${s===st?'selected':''}>${s}</option>`).join('')}</select><button class="btn p" onclick="editSinistre()">+ Sinistre</button></div>${sinTable(L,true)}`};
+V.taches=(p)=>{const all=p.get('all');const L=D.taches.filter(t=>all||!t.fait);
+ const ech=D.contrats.filter(active).map(c=>({c,d:nextEch(c)})).filter(x=>x.d).sort((a,b)=>a.d-b.d).slice(0,60);
+ return `<div class="row" style="margin-bottom:14px"><h2 style="margin:0">Tâches & relances</h2><span class="sp"></span><a class="btn" href="#/taches${all?'':'?all=1'}">${all?'Masquer les terminées':'Afficher les terminées'}</a><button class="btn p" onclick="editTache()">+ Tâche</button></div>${tkTable(L,true)}
+ <h3 style="margin-top:22px">Prochaines échéances de contrats</h3><div class="tw"><table><tr><th>Échéance</th><th>Limite préavis (2 mois)</th><th>Client</th><th>Compagnie</th><th>N°</th><th class="right">Prime</th><th></th></tr>${ech.map(({c,d})=>{const pv=new Date(d);pv.setMonth(pv.getMonth()-2);return `<tr><td class="nowrap">${fr(d)}</td><td class="nowrap" style="${pv<today()?'color:var(--mut)':''}">${fr(pv)}</td><td><a href="#/client/${c.clientId}">${esc(cname(cli(c.clientId)))}</a></td><td>${esc(c.compagnie||'')}</td><td>${cp(c.numero)}</td><td class="right">${eur(c.primeTTC)}</td><td><button class="btn s" onclick="editTache(null,'${c.clientId}',{titre:'Relance échéance ${esc((c.compagnie||'').replace(/'/g,''))} ${esc((c.numero||'').replace(/'/g,''))}',type:'Échéance contrat',echeance:'${iso(pv)}'})">+ relance</button></td></tr>`}).join('')||'<tr><td colspan="7" class="muted">Renseignez l\'échéance principale dans les contrats.</td></tr>'}</table></div>`};
+
+/* ================= IMPORT / EXPORT ================= */
+const XLSX_URLS=['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'];
+async function needX(){if(!window.XLSX)await loadScript(XLSX_URLS)}
+const fmtRow=(o,fs)=>{const r={};fs.forEach(f=>{let v=o[f.k];if(f.t==='date')v=fr(v);else if(f.t==='number'&&v!==''&&v!=null)v=num(v);r[f.l]=v??''});return r};
+async function exportXLSX(ids){await needX();const set=ids?new Set(ids):null;const cl=D.clients.filter(c=>!set||set.has(c.id));const cids=new Set(cl.map(c=>c.id));
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cl.map(c=>fmtRow(c,F.client))),'Clients');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.contrats.filter(k=>cids.has(k.clientId)).map(k=>({Client:cname(cli(k.clientId)),'Réf. client':cli(k.clientId)?.reference||'',...fmtRow(k,F.contrat)}))),'Contrats');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.sinistres.filter(k=>cids.has(k.clientId)).map(s=>({Client:cname(cli(s.clientId)),...fmtRow({...s,contratId:D.contrats.find(x=>x.id===s.contratId)?.numero||''},F.sinistre)}))),'Sinistres');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.taches.map(t=>({Client:t.clientId?cname(cli(t.clientId)):'',Fait:t.fait?'Oui':'Non',...fmtRow({...t,clientId:''},F.tache)}))),'Tâches');
+ XLSX.writeFile(wb,'CRM_GPC_'+iso(new Date())+'.xlsx')}
+async function exportContrats(ids){await needX();const s=new Set(ids);const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.contrats.filter(k=>s.has(k.id)).map(k=>{const c=cli(k.clientId)||{};return {Client:cname(c),'Réf. client':c.reference||'',Type:c.type||'',Téléphone:c.tel||'',Email:c.email||'',...fmtRow(k,F.contrat)}})),'Contrats');XLSX.writeFile(wb,'Contrats_GPC_'+iso(new Date())+'.xlsx')}
+function backupJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));a.download='CRM_GPC_sauvegarde_'+iso(new Date())+'.json';a.click()}
+function restoreJSON(f){const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.clients)throw 0;if(confirm('Fusionner cette sauvegarde avec les données actuelles ?')){D=merge(D,x);dirty();route();toast('Sauvegarde restaurée')}}catch(e){alert('Fichier invalide')}};r.readAsText(f)}
+
+const TARGETS=[['','— ignorer —'],['c.nom','Client : Nom / Raison sociale'],['c.prenom','Client : Prénom'],['c.reference','Client : Référence'],['c.type','Client : Type (Pro/Particulier)'],['c.gerant','Client : Gérant / contact'],['c.siret','Client : SIRET'],['c.activite','Client : Activité'],['c.adresse','Client : Adresse'],['c.cp','Client : Code postal'],['c.ville','Client : Ville'],['c.tel','Client : Téléphone'],['c.email','Client : Email'],['c.dateNaissance','Client : Date de naissance'],['c.notes','Client : Notes'],
+ ['k.compagnie','Contrat : Compagnie'],['k.intermediaire','Contrat : Intermédiaire'],['k.branche','Contrat : Branche / type'],['k.produit','Contrat : Produit'],['k.numero','Contrat : N° de contrat'],['k.reference','Contrat : Réf. interne'],['k.dateEffet','Contrat : Date d\'effet'],['k.echeance','Contrat : Échéance'],['k.fractionnement','Contrat : Fractionnement'],['k.primeTTC','Contrat : Prime TTC'],['k.primeHT','Contrat : Prime HT'],['k.tauxCom','Contrat : Taux comm. %'],['k.commission','Contrat : Commission €'],['k.statut','Contrat : Statut'],['k.notes','Contrat : Notes']];
+function guess(h){const n=norm(h);const R=[[/raison|^nom|client|assure|souscripteur|societe|entreprise|denomination/,'c.nom'],[/prenom/,'c.prenom'],[/ref.*client|code client|n.? ?client/,'c.reference'],[/siret|siren/,'c.siret'],[/activite|metier|naf/,'c.activite'],[/adresse|rue/,'c.adresse'],[/code postal|^cp$/,'c.cp'],[/ville|commune/,'c.ville'],[/tel|portable|mobile/,'c.tel'],[/mail/,'c.email'],[/naissance/,'c.dateNaissance'],[/gerant|contact/,'c.gerant'],
+  [/compagnie|assureur|porteur/,'k.compagnie'],[/grossiste|intermediaire|partenaire/,'k.intermediaire'],[/branche|type.*contrat|risque|garantie|categorie/,'k.branche'],[/produit|formule/,'k.produit'],[/n.? ?(de )?(contrat|police)|police|contrat/,'k.numero'],[/effet|souscription/,'k.dateEffet'],[/echeance/,'k.echeance'],[/fraction|periodicite/,'k.fractionnement'],[/taux/,'k.tauxCom'],[/commission|com\b|comm/,'k.commission'],[/ht/,'k.primeHT'],[/prime|cotisation|ttc|montant/,'k.primeTTC'],[/statut|etat|situation/,'k.statut']];
+ for(const [r,t] of R)if(r.test(n))return t;return''}
+let IMP=null;
+async function impFile(f){await needX();const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});
+ IMP={wb,sheets:wb.SheetNames.map(n=>{const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:true});let hi=rows.findIndex(r=>r.filter(x=>String(x).trim()).length>=2);if(hi<0)hi=0;return {n,rows,hi}})};
+ const hs=[...new Set(IMP.sheets.flatMap(s=>(s.rows[s.hi]||[]).map(h=>String(h).trim()).filter(Boolean)))];IMP.headers=hs;
+ $('#impzone').innerHTML=`<div class="card"><h3>1. Onglets à importer</h3>${IMP.sheets.map((s,i)=>`<label style="display:block"><input type="checkbox" style="width:auto" class="shk" value="${i}" ${s.rows.length>s.hi+1?'checked':''}> ${esc(s.n)} <span class="muted">(${Math.max(0,s.rows.length-s.hi-1)} lignes)</span></label>`).join('')}
+ <label style="display:block;margin-top:8px"><input type="checkbox" style="width:auto" id="shcomp" checked> Si la colonne Compagnie est vide, utiliser le <b>nom de l'onglet</b> comme compagnie</label></div>
+ <div class="card"><h3>2. Correspondance des colonnes</h3><p class="muted">Vérifiez la colonne cible de chaque en-tête de votre fichier.</p><div class="form">${hs.map((h,i)=>`<div><label>${esc(h)}</label><select class="mp" data-h="${esc(h)}">${TARGETS.map(([v,l])=>`<option value="${v}" ${guess(h)===v?'selected':''}>${l}</option>`).join('')}</select></div>`).join('')}</div>
+ <p><label><input type="checkbox" style="width:auto" id="dedup" checked> Regrouper les lignes d'un même client (même nom) en une seule fiche avec plusieurs contrats</label></p>
+ <div class="row"><span class="sp"></span><button class="btn p" onclick="impRun()">Importer</button></div></div>`}
+function toISO(v){if(v instanceof Date)return iso(v);const s=String(v).trim();let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);if(/^\d{5}$/.test(s)){return iso(new Date(Date.UTC(1899,11,30)+(+s)*864e5))}return s}
+function impRun(){const map={};document.querySelectorAll('.mp').forEach(s=>{if(s.value)map[s.dataset.h]=s.value});
+ if(!Object.values(map).includes('c.nom'))return alert('Indiquez au moins la colonne « Client : Nom ».');
+ const useSheet=$('#shcomp').checked,dd=$('#dedup').checked;const idx=new Map(D.clients.map(c=>[norm(cname(c)),c]));let nc=0,nk=0;
+ const dateK=new Set(['c.dateNaissance','k.dateEffet','k.echeance']);
+ document.querySelectorAll('.shk:checked').forEach(cb=>{const s=IMP.sheets[+cb.value];const H=(s.rows[s.hi]||[]).map(h=>String(h).trim());
+  for(const r of s.rows.slice(s.hi+1)){const c={},k={};H.forEach((h,i)=>{const t=map[h];if(!t)return;let v=r[i];if(v===''||v==null)return;v=dateK.has(t)?toISO(v):(v instanceof Date?fr(iso(v)):String(v).trim());const [o,f]=t.split('.');(o==='c'?c:k)[f]=(o==='c'?c:k)[f]?(o==='c'?c:k)[f]+' '+v:v});
+   if(!c.nom)continue;if(c.type&&/part/i.test(c.type))c.type='Particulier';else if(c.type)c.type='Professionnel';
+   let cl=dd?idx.get(norm([c.nom,c.prenom].filter(Boolean).join(' '))):null;
+   if(!cl){cl=touch({id:uid(),statut:'Client',type:c.type||'Professionnel',createdAt:Date.now(),journal:[],...c});D.clients.push(cl);idx.set(norm(cname(cl)),cl);nc++}
+   else{for(const f in c)if(!cl[f])cl[f]=c[f];touch(cl)}
+   if(Object.keys(k).length){if(!k.compagnie&&useSheet)k.compagnie=s.n;
+    if(k.statut){const st=norm(k.statut);k.statut=/resili/.test(st)?'Résilié':/suspen/.test(st)?'Suspendu':/sans effet|annul/.test(st)?'Sans effet':/attente/.test(st)?'En attente':'En cours'}
+    ['primeTTC','primeHT','commission','tauxCom'].forEach(f=>{if(k[f]!=null)k[f]=String(num(k[f]))});
+    if(k.numero&&D.contrats.some(x=>x.numero===k.numero&&x.clientId===cl.id))continue;
+    D.contrats.push(touch({id:uid(),clientId:cl.id,statut:'En cours',...k}));nk++}}});
+ dirty();$('#impzone').innerHTML=`<div class="card"><b>Import terminé :</b> ${nc} client(s) créé(s), ${nk} contrat(s) ajouté(s). <a href="#/clients">Voir les clients</a></div>`;toast('Import terminé')}
+V.import=()=>`<h2>Import / Export</h2>
+ <div class="card"><h3>Importer un fichier Excel ou CSV</h3><p class="muted">Par exemple votre fichier CRM_Clients_GPC.xlsx. Tous les onglets sont lus ; vous choisissez ensuite la correspondance des colonnes.</p><input type="file" accept=".xlsx,.xls,.csv" onchange="this.files[0]&&impFile(this.files[0]).catch(e=>alert(e.message))" style="width:auto"></div><div id="impzone"></div>
+ <div class="card"><h3>Exporter</h3><div class="row"><button class="btn p" onclick="exportXLSX()">⬇ Tout exporter en Excel (clients, contrats, sinistres, tâches)</button><button class="btn" onclick="backupJSON()">⬇ Sauvegarde complète (.json)</button><label class="btn">⬆ Restaurer une sauvegarde<input type="file" accept=".json" hidden onchange="this.files[0]&&restoreJSON(this.files[0])"></label></div></div>`;
+
+V.parametres=()=>{const cid=localStorage.getItem(CFG_ID)||'';const url=location.origin+location.pathname;const httpOK=location.protocol.startsWith('http');
+ return `<h2>Paramètres — stockage OneDrive</h2>
+ <div class="card"><h3>État</h3>${MODE==='onedrive'?`<p>✅ Connecté à OneDrive : <b>${esc(account.username)}</b><br>Fichier : <code>OneDrive › ${FILE}</code> · Pièces jointes : <code>OneDrive › ${ROOT}/Pieces_jointes</code></p><button class="btn" onclick="logout()">Se déconnecter</button>`:`<p>💾 Mode local (navigateur). ${D.clients.length} client(s) en local.</p>${cid?`<button class="btn p" onclick="login()">Se connecter avec gpc@gpcassurances.com</button>`:''}`}</div>
+ <div class="card"><h3>ID d'application Microsoft (à faire une seule fois)</h3>
+ <div class="row"><input id="cid" value="${esc(cid)}" placeholder="ex : 1a2b3c4d-…" style="max-width:420px"><button class="btn p" onclick="localStorage.setItem('${CFG_ID}',$('#cid').value.trim());location.reload()">Enregistrer</button></div>
+ <ol style="margin-top:14px"><li>Allez sur <a href="https://entra.microsoft.com" target="_blank">entra.microsoft.com</a> (ou portal.azure.com) connecté avec <b>gpc@gpcassurances.com</b>.</li>
+ <li>Menu <b>Applications › Inscriptions d'applications › Nouvelle inscription</b>. Nom : <i>CRM GPC</i>.</li>
+ <li>Types de comptes : <b>Comptes dans un annuaire organisationnel et comptes Microsoft personnels</b>.</li>
+ <li>URI de redirection : plateforme <b>Application monopage (SPA)</b>, adresse :<br><code>${esc(url)}</code> <button class="btn s" data-copy="${esc(url)}">Copier</button>${httpOK?'':'<br><span style="color:var(--bad)">⚠ La page est ouverte comme fichier local : l\'adresse doit être https://… (hébergement) ou http://localhost. Voir ci-dessous.</span>'}</li>
+ <li>Cliquez <b>Inscrire</b>, copiez l'<b>ID d'application (client)</b> et collez-le ci-dessus.</li>
+ <li>Dans <b>Autorisations des API</b>, vérifiez <i>Microsoft Graph › User.Read</i> et ajoutez <i>Files.ReadWrite</i> (délégué).</li>
+ <li>Revenez ici, cliquez <b>Se connecter</b>.</li></ol>
+ <p class="muted">Hébergement de la page : la connexion Microsoft exige une adresse web. Le plus simple : la mettre sur votre site gpcassurances.com, sur GitHub Pages, ou la lancer en local avec <code>python -m http.server 8080</code> puis ouvrir <code>http://localhost:8080/crm-gpc.html</code>. La page ne contient aucune donnée : tout est dans votre OneDrive.</p>
+ <p class="muted">Votre assistante : elle se connecte avec le même compte, ou partagez-lui le dossier <code>${ROOT}</code>. Les modifications faites en même temps sur deux postes sont fusionnées automatiquement.</p></div>
+ ${MODE==='onedrive'&&localStorage.getItem(LKEY)?`<div class="card"><h3>Données locales trouvées</h3><p>Des données saisies en mode local existent sur ce navigateur.</p><button class="btn p" onclick="D=merge(D,JSON.parse(localStorage.getItem('${LKEY}')));dirty();localStorage.removeItem('${LKEY}');route();toast('Données transférées vers OneDrive')">Transférer vers OneDrive</button></div>`:''}`};
+
+/* ================= ROUTEUR ================= */
+function route(){const h=location.hash.slice(2)||'dashboard';const [path,qs]=h.split('?');const parts=path.split('/');const p=new URLSearchParams(qs||'');
+ const v=parts[0];document.querySelectorAll('#side nav a').forEach(a=>a.classList.toggle('on',a.dataset.n===(v==='client'?'clients':v)));
+ const fn=V[v]||V.dashboard;const y=window.scrollY;$('#main').innerHTML=fn(p,parts[1],parts[2]);if(route.last===location.hash)window.scrollTo(0,y);route.last=location.hash}
+window.addEventListener('hashchange',route);
+
+(async function init(){
+ try{if(await initMsal()){MODE='onedrive';$('#acct').innerHTML='☁ '+esc(account.username);await loadRemote()}}
+ catch(e){console.error(e);toast('OneDrive indisponible : '+e.message)}
+ if(MODE==='local'){try{D=Object.assign(empty(),JSON.parse(localStorage.getItem(LKEY)||'null')||{})}catch(e){}$('#acct').innerHTML='💾 Mode local<br><a href="#/parametres" style="color:#93c5fd">Connecter OneDrive</a>'}
+ setSync('ok');route()})();
+</script>
+</body>
+</html>
