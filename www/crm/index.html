@@ -498,7 +498,7 @@ const INBOX=ROOT+'/A_integrer';
 function findClient(m){if(!m)return null;const sd=digits(m.siret).slice(0,9);
  return (sd.length===9&&D.clients.find(c=>digits(c.siret).slice(0,9)===sd))||D.clients.find(c=>norm(cname(c))===norm([m.nom,m.prenom].filter(Boolean).join(' ')))||D.clients.find(c=>norm(c.nom)===norm(m.nom))||null}
 function upsertClient(m,src){let c=findClient(m);if(!c){c=touch({id:uid(),statut:'Client',type:m.siret?'Professionnel':'Particulier',createdAt:Date.now(),journal:[]});D.clients.push(c)}
- for(const f of F.client.map(x=>x.k))if(m[f]!==undefined&&m[f]!==''&&f!=='notes')c[f]=String(m[f]);if(m.notes)c.notes=[c.notes,m.notes].filter(Boolean).join('\n');touch(c);return c}
+ for(const f of F.client.map(x=>x.k))if(m[f]!==undefined&&m[f]!==''&&f!=='notes')c[f]=String(m[f]);if(m.notes)c.notes=[c.notes,m.notes].filter(Boolean).join('\n');if(m.pjFolder&&!c.pjFolder)c.pjFolder=m.pjFolder;touch(c);return c}
 function addJournal(c,t){c.journal=c.journal||[];c.journal.push({d:Date.now(),t});touch(c)}
 function applyUpdate(u,fname){let n=0;const src=u.source||fname;
  for(const m of u.clients||[]){const c=upsertClient(m);addJournal(c,'Intégré automatiquement ('+src+')');n++}
