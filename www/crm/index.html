@@ -82,6 +82,7 @@ ol li{margin-bottom:6px}
  <div id="wrap">
   <div id="top">
    <div id="search"><input id="q" placeholder="Rechercher : nom, n° de contrat, référence, n° sinistre, SIRET, téléphone, email…" autocomplete="off"><div id="sres"></div></div>
+   <button class="btn" onclick="depotGlobal()">📥 Déposer un document</button>
    <button class="btn p" onclick="editClient()">+ Client</button>
    <span id="sync"></span>
   </div>
@@ -336,11 +337,22 @@ async function listPJ(id){const box=$('#pjlist');if(!box)return;
   const j=await r.json();const it=(j.value||[]).filter(x=>x.file);
   box.innerHTML=it.length?`<div class="tw"><table><tr><th>Fichier</th><th>Taille</th><th>Modifié le</th><th></th></tr>${it.map(f=>`<tr><td><a href="${esc(f.webUrl)}" target="_blank">📎 ${esc(f.name)}</a></td><td class="nowrap">${(f.size/1024).toFixed(0)} Ko</td><td class="nowrap">${fr(new Date(f.lastModifiedDateTime))}</td><td class="right nowrap"><a class="btn s" href="${esc(f['@microsoft.graph.downloadUrl']||f.webUrl)}">⬇</a> <button class="btn s" data-copy="${esc(f.webUrl)}" title="Copier le lien">🔗</button> <button class="btn s d" onclick="delPJ('${f.id}','${id}')">✕</button></td></tr>`).join('')}</table></div>`:'<p class="muted">Aucune pièce jointe.</p>'}
  catch(e){box.innerHTML='<p class="muted">Erreur : '+esc(e.message)+'</p>'}}
-async function uploadPJ(id,files){if(MODE!=='onedrive')return alert('Connectez OneDrive dans Paramètres pour déposer des fichiers.');
- const folder=pjFolder(cli(id));for(const f of files){toast('Envoi de '+f.name+'…');
-  try{if(f.size<4e6){const r=await G(`/me/drive/root:/${enc(folder+'/'+f.name)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:'PUT',body:f});if(!r.ok)throw new Error(r.status)}else await uploadBig(folder+'/'+f.name,f,'rename')}
+const QUEUE=ROOT+'/A_analyser';
+async function putFile(path,f){if(f.size<4e6){const r=await G(`/me/drive/root:/${enc(path)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:'PUT',body:f});if(!r.ok)throw new Error(r.status);return r.json()}return uploadBig(path,f,'rename')}
+async function queueAnalyse(c,item,note){const req={type:'analyse',date:new Date().toISOString(),client:c?{id:c.id,nom:cname(c),siret:c.siret||'',reference:c.reference||''}:null,fichier:{nom:item.name,itemId:item.id,webUrl:item.webUrl,parentPath:(item.parentReference||{}).path||''},note:note||''};
+ await G(`/me/drive/root:/${enc(QUEUE+'/'+iso(new Date())+'_'+uid()+'.json')}:/content`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(req,null,1)})}
+async function uploadPJ(id,files,analyse,note){if(MODE!=='onedrive')return alert('Connectez OneDrive dans Paramètres pour déposer des fichiers.');
+ const c=id?cli(id):null;const folder=c?pjFolder(c):ROOT+'/Documents_divers';let n=0;
+ for(const f of files){toast('Envoi de '+f.name+'…');
+  try{const it=await putFile(folder+'/'+f.name,f);n++;if(analyse)await queueAnalyse(c,it,note)}
   catch(e){alert('Échec envoi '+f.name+' : '+e.message)}}
- toast(files.length+' fichier(s) déposé(s)');listPJ(id)}
+ if(c&&analyse){addJournal(c,n+' document(s) déposé(s) pour analyse et mise à jour de la fiche');dirty()}
+ toast(n+' fichier(s) enregistré(s) dans OneDrive'+(analyse?' — analyse demandée':''));if(id)listPJ(id)}
+function depotGlobal(){modal(`<h3>Déposer un document</h3><div class="form"><div class="full"><label>Client (facultatif)</label><select id="dgc"><option value="">— Je ne sais pas / nouveau client : Claude l'identifiera —</option>${[...D.clients].sort((a,b)=>cname(a).localeCompare(cname(b))).map(c=>`<option value="${c.id}">${esc(cname(c))}</option>`).join('')}</select></div>
+ <div class="full"><label>Précision (facultatif)</label><input id="dgn" placeholder="ex. CP signées, avenant, relevé de commissions, courrier sinistre…"></div>
+ <div class="full"><label><input type="checkbox" id="dga" checked style="width:auto"> Analyser le document et mettre à jour les informations (client, contrat, sinistre, commission)</label></div>
+ <div class="full drop" id="dgd">📂 Glissez-déposez ici ou <u>cliquez pour choisir</u><input type="file" id="dgf" multiple hidden></div></div><div class="row"><span class="sp"></span><button class="btn" onclick="closeModal()">Fermer</button></div>`);
+ const go=fs=>{const id=$('#dgc').value,a=$('#dga').checked,nt=$('#dgn').value;closeModal();uploadPJ(id,fs,a,nt)};const d=$('#dgd'),fi=$('#dgf');d.onclick=()=>fi.click();fi.onchange=()=>go([...fi.files]);d.ondragover=e=>{e.preventDefault();d.classList.add('ov')};d.ondragleave=()=>d.classList.remove('ov');d.ondrop=e=>{e.preventDefault();go([...e.dataTransfer.files])}}
 async function delPJ(itemId,id){if(!confirm('Supprimer ce fichier de OneDrive ?'))return;await G('/me/drive/items/'+itemId,{method:'DELETE'});listPJ(id)}
 async function openFolder(id){if(MODE!=='onedrive')return;const r=await G(`/me/drive/root:/${enc(pjFolder(cli(id)))}`);if(r.ok){window.open((await r.json()).webUrl,'_blank')}else toast('Dossier vide pour l\'instant')}
 
@@ -381,7 +393,7 @@ V.client=(p,id,tab='infos')=>{const c=cli(id);if(!c)return '<p>Client introuvabl
  if(tab==='contrats')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editContrat(null,'${id}')">+ Contrat</button></div>${ctTable(cts,false)}`;
  if(tab==='sinistres')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editSinistre(null,'${id}')">+ Sinistre</button></div>${sinTable(sins,false)}`;
  if(tab==='taches')body=`<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn p" onclick="editTache(null,'${id}')">+ Tâche</button></div>${tkTable(tks,false)}`;
- if(tab==='docs'){body=`<div class="drop" id="drop">📂 Glissez-déposez vos fichiers ici (CNI, Kbis, CP, devis, RIB…) ou <u>cliquez pour choisir</u><input type="file" id="fin" multiple hidden></div><div class="row" style="margin-bottom:10px"><span class="muted">Stockés dans OneDrive › ${esc(ROOT)}/Pieces_jointes</span><span class="sp"></span><button class="btn" onclick="openFolder('${id}')">Ouvrir le dossier OneDrive</button><button class="btn" onclick="listPJ('${id}')">⟳</button></div><div id="pjlist"></div>`;setTimeout(()=>{const d=$('#drop'),fi=$('#fin');d.onclick=()=>fi.click();fi.onchange=()=>uploadPJ(id,[...fi.files]);d.ondragover=e=>{e.preventDefault();d.classList.add('ov')};d.ondragleave=()=>d.classList.remove('ov');d.ondrop=e=>{e.preventDefault();d.classList.remove('ov');uploadPJ(id,[...e.dataTransfer.files])};listPJ(id)})}
+ if(tab==='docs'){body=`<div class="drop" id="drop">📂 Glissez-déposez vos fichiers ici (CNI, Kbis, CP, devis, RIB…) ou <u>cliquez pour choisir</u><input type="file" id="fin" multiple hidden></div><div class="row" style="margin-bottom:6px"><label><input type="checkbox" id="anz" checked style="width:auto"> Analyser les documents déposés et mettre à jour la fiche (contrat, sinistre, coordonnées…)</label></div><div class="row" style="margin-bottom:10px"><span class="muted">Stockés dans OneDrive › ${esc(ROOT)}/Pieces_jointes</span><span class="sp"></span><button class="btn" onclick="openFolder('${id}')">Ouvrir le dossier OneDrive</button><button class="btn" onclick="listPJ('${id}')">⟳</button></div><div id="pjlist"></div>`;setTimeout(()=>{const d=$('#drop'),fi=$('#fin');d.onclick=()=>fi.click();fi.onchange=()=>uploadPJ(id,[...fi.files],$('#anz').checked);d.ondragover=e=>{e.preventDefault();d.classList.add('ov')};d.ondragleave=()=>d.classList.remove('ov');d.ondrop=e=>{e.preventDefault();d.classList.remove('ov');uploadPJ(id,[...e.dataTransfer.files],$('#anz').checked)};listPJ(id)})}
  if(tab==='journal')body=`<div class="card"><textarea id="jt" placeholder="Note d'appel, échange, info…"></textarea><div class="row" style="margin-top:8px"><span class="sp"></span><button class="btn p" onclick="addJ('${id}')">Ajouter au journal</button></div></div>${(c.journal||[]).slice().reverse().map((j,i)=>`<div class="jr"><small>${new Date(j.d).toLocaleString('fr-FR')}</small><div style="white-space:pre-wrap">${esc(j.t)}</div></div>`).join('')||'<p class="muted">Journal vide.</p>'}`;
  return `<div class="row" style="margin-bottom:6px"><a href="#/clients">← Clients</a></div>
  <div class="row" style="margin-bottom:14px"><h2 style="margin:0">${cp(cname(c))}</h2>${bStat(c.statut)}<span class="bdg">${esc(c.type||'')}</span>${c.reference?`<span class="muted">Réf. ${cp(c.reference)}</span>`:''}<span class="sp"></span>
