@@ -113,7 +113,7 @@ function loadScript(urls){return new Promise((res,rej)=>{const tryN=i=>{if(i>=ur
 /* ================= LISTES DE RÉFÉRENCE ================= */
 const COMPAGNIES=['Abeille Vie','AIG','Airbag','Allianz','AMI3F','April','AREAS','Assurmax','AXA','BHL Développement (Accelerant)','Ergo','Generali','Kereis','Leader','Luxior','Malakoff Humanis','MALJ','Matrisk','Maxance','MMA','Solly Azar','Spring','Swiss Life','Tetris'];
 const BRANCHES=['Santé','Prévoyance','Multirisque professionnelle (MRP)','RC Professionnelle','RC Décennale','Dommage ouvrage','Habitation','Auto','Flotte auto','Auto entreprise','Emprunteur','Épargne / Retraite','Protection juridique','Autre'];
-const ST_CT=['En cours','En attente','Suspendu','Résilié','Sans effet'];
+const ST_CT=['En cours','Devis','En attente','Suspendu','Résilié','Sans effet'];
 const ST_SIN=['Ouvert','En expertise','En attente de pièces','Réglé','Clos','Refusé'];
 
 const F={
@@ -253,8 +253,9 @@ function remove(coll,id){D[coll]=D[coll].filter(x=>x.id!==id);D.deleted[id]=Date
 function nextEch(c){if(!c.echeance)return null;const d=new Date(c.echeance+'T00:00');if(isNaN(d))return null;const t=today();while(d<t)d.setFullYear(d.getFullYear()+1);return d}
 const daysTo=d=>Math.round((d-today())/864e5);
 const active=c=>(c.statut||'En cours')==='En cours';
+function recalcStatut(c){if(!c)return;const k=D.contrats.filter(x=>x.clientId===c.id);if(!k.length)return;const s=k.some(active)?'Client':k.some(x=>x.statut==='Devis'||x.statut==='En attente')?'Prospect':'Ancien client';if(c.statut!==s){c.statut=s;touch(c)}}
 const partner=k=>(k.intermediaire||'').trim()||((k.compagnie||'(non renseigné)')+' (direct)');
-function bStat(s){const m={'En cours':'b-ok','Client':'b-ok','Prospect':'b-info','Résilié':'b-bad','Ancien client':'b-bad','Sans effet':'b-bad','Suspendu':'b-warn','En attente':'b-warn','Ouvert':'b-warn','En expertise':'b-warn','En attente de pièces':'b-warn','Réglé':'b-ok','Clos':'b-ok','Refusé':'b-bad','Urgente':'b-bad','Haute':'b-warn'};return s?`<span class="bdg ${m[s]||''}">${esc(s)}</span>`:''}
+function bStat(s){const m={'Devis':'b-info','En cours':'b-ok','Client':'b-ok','Prospect':'b-info','Résilié':'b-bad','Ancien client':'b-bad','Sans effet':'b-bad','Suspendu':'b-warn','En attente':'b-warn','Ouvert':'b-warn','En expertise':'b-warn','En attente de pièces':'b-warn','Réglé':'b-ok','Clos':'b-ok','Refusé':'b-bad','Urgente':'b-bad','Haute':'b-warn'};return s?`<span class="bdg ${m[s]||''}">${esc(s)}</span>`:''}
 
 /* ================= RECHERCHE GLOBALE ================= */
 function searchAll(q,max=15){
@@ -301,7 +302,7 @@ function editContrat(id,clientId){let o=id?D.contrats.find(c=>c.id===id):{id:uid
  if(!o.clientId){return pickClient(cid=>editContrat(null,cid))}
  formModal(id?'Modifier le contrat':'Nouveau contrat — '+cname(cli(o.clientId)),'contrat',o,{},x=>{
   if(!num(x.commission)&&num(x.tauxCom)){const base=num(x.primeHT)||num(x.primeTTC);if(base)x.commission=(base*num(x.tauxCom)/100).toFixed(2)}
-  if(id)Object.assign(o,x);else D.contrats.push(x)})}
+  if(id)Object.assign(o,x);else D.contrats.push(x);recalcStatut(cli(x.clientId))})}
 function editSinistre(id,clientId){let o=id?D.sinistres.find(c=>c.id===id):{id:uid(),clientId,statut:'Ouvert',dateDeclaration:iso(new Date())};
  if(!o.clientId){return pickClient(cid=>editSinistre(null,cid))}
  formModal(id?'Modifier le sinistre':'Nouveau sinistre — '+cname(cli(o.clientId)),'sinistre',o,{clientId:o.clientId},x=>{if(id)Object.assign(o,x);else D.sinistres.push(x)})}
@@ -518,6 +519,7 @@ function applyUpdate(u,fname){let n=0;const src=u.source||fname;
   x.notes=[x.notes,'Commission '+(cm.periode||'')+' : '+eur(cm.montant)+(cm.statut?' ('+cm.statut+')':'')].filter(Boolean).join(' · ');touch(x);n++}
  for(const t of u.taches||[]){const c=t.client?findClient(t.client):null;D.taches.push(touch({id:uid(),clientId:c?c.id:'',titre:t.titre,echeance:t.echeance||iso(new Date()),type:t.type||'Autre',priorite:t.priorite||'Normale',notes:t.notes||'',fait:false}));n++}
  for(const j of u.journal||[]){const c=findClient(j.client);if(c){addJournal(c,j.t);n++}}
+D.clients.forEach(recalcStatut);
  return n}
 async function processInbox(){if(MODE!=='onedrive'||!LOADED)return;
  try{const r=await G(`/me/drive/root:/${enc(INBOX)}:/children?$top=200`);if(!r.ok)return;const files=((await r.json()).value||[]).filter(f=>f.file&&/\.json$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));if(!files.length)return;
