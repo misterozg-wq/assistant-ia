@@ -207,13 +207,14 @@ async function G(path,opt={}){const t=await token();return fetch(path.startsWith
 function merge(a,b){const out=empty();out.deleted={...(a.deleted||{}),...(b.deleted||{})};
  for(const k of ['clients','contrats','sinistres','taches']){const m=new Map();for(const x of [...(a[k]||[]),...(b[k]||[])]){const p=m.get(x.id);if(!p||(x.updatedAt||0)>(p.updatedAt||0))m.set(x.id,x)}out[k]=[...m.values()].filter(x=>!out.deleted[x.id])}return out}
 
+let LOADED=false;
 async function loadRemote(){
- setSync('load');
- const m=await G(`/me/drive/root:/${enc(FILE)}`);
- if(m.status===404){ETAG=null;D=empty();return}
+ setSync('load');let m;
+ for(let i=0;i<4;i++){m=await G(`/me/drive/root:/${enc(FILE)}?t=${Date.now()}`);console.log('[CRM] chargement OneDrive',m.status);if(m.ok)break;await new Promise(r=>setTimeout(r,1200*(i+1)))}
+ if(m.status===404){const s=await G(`/me/drive/root/search(q='crm-data.json')`);const j=s.ok?await s.json():{value:[]};if((j.value||[]).some(x=>x.name==='crm-data.json'&&x.parentReference&&/CRM_GPC/.test(x.parentReference.path||'')))throw new Error('fichier présent mais illisible');ETAG=null;D=empty();LOADED=true;return}
  if(!m.ok)throw new Error('OneDrive '+m.status);
  const meta=await m.json();ETAG=meta.eTag;
- const r=await G(`/me/drive/items/${meta.id}/content`);D=Object.assign(empty(),await r.json());
+ const r=await G(`/me/drive/items/${meta.id}/content`);if(!r.ok)throw new Error('Lecture '+r.status);D=Object.assign(empty(),await r.json());LOADED=true;
 }
 async function uploadBig(path,blob,conflict='replace'){
  const s=await G(`/me/drive/root:/${enc(path)}:/createUploadSession`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':conflict}})});
@@ -226,6 +227,7 @@ async function save(){
  saving=true;pending=false;
  try{
   if(MODE==='local'){localStorage.setItem(LKEY,JSON.stringify(D));setSync('ok');return}
+  if(!LOADED){setSync('err');pending=true;toast('Données OneDrive non chargées : rechargez la page avant de modifier.');return}
   const body=JSON.stringify(D);let j;
   if(body.length>3800000){j=await uploadBig(FILE,new Blob([body],{type:'application/json'}))}
   else{const h={'Content-Type':'application/json'};if(ETAG)h['If-Match']=ETAG;
@@ -486,7 +488,7 @@ window.addEventListener('hashchange',route);
 
 (async function init(){
  try{if(await initMsal()){MODE='onedrive';$('#acct').innerHTML='☁ '+esc(account.username);await loadRemote()}}
- catch(e){console.error(e);toast('OneDrive indisponible : '+e.message)}
+ catch(e){console.error(e);$('#main').innerHTML=`<div class="banner">⚠ Impossible de charger les données OneDrive (${esc(e.message)}). Aucune modification n'est enregistrée tant que les données ne sont pas chargées. <button class="btn p" onclick="location.reload()">Réessayer</button></div>`;setSync('err');return}
  if(MODE==='local'){try{D=Object.assign(empty(),JSON.parse(localStorage.getItem(LKEY)||'null')||{})}catch(e){}$('#acct').innerHTML='💾 Mode local<br><a href="#/parametres" style="color:#93c5fd">Connecter OneDrive</a>'}
  setSync('ok');route()})();
 </script>
