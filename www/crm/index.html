@@ -176,7 +176,9 @@ const F={
 };
 
 /* ================= STOCKAGE (local ou OneDrive) ================= */
-const LKEY='crmgpc_data', CFG_ID='crmgpc_clientId';
+const LKEY='crmgpc_data', CFG_ID='crmgpc_clientId', DEFAULT_CID='a97b0a70-9408-49f8-971a-384f434597ff';
+const cfgId=()=>localStorage.getItem(CFG_ID)||DEFAULT_CID;
+const REDIR=()=>location.origin+location.pathname.replace(/index\.html$/,'');
 const ROOT='CRM_GPC', FILE=ROOT+'/crm-data.json';
 const SCOPES=['User.Read','Files.ReadWrite'];
 const empty=()=>({clients:[],contrats:[],sinistres:[],taches:[],deleted:{},v:1});
@@ -189,9 +191,9 @@ function dirty(){pending=true;clearTimeout(saveT);saveT=setTimeout(save,700);set
 function enc(p){return p.split('/').map(encodeURIComponent).join('/')}
 
 async function initMsal(){
- const cid=localStorage.getItem(CFG_ID);if(!cid)return false;
+ const cid=cfgId();if(!cid||!location.protocol.startsWith('http'))return false;
  if(!window.msal) await loadScript(['https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js','https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js']);
- msalApp=new msal.PublicClientApplication({auth:{clientId:cid,authority:'https://login.microsoftonline.com/common',redirectUri:location.origin+location.pathname},cache:{cacheLocation:'localStorage'}});
+ msalApp=new msal.PublicClientApplication({auth:{clientId:cid,authority:'https://login.microsoftonline.com/common',redirectUri:REDIR()},cache:{cacheLocation:'localStorage'}});
  if(msalApp.initialize) await msalApp.initialize();
  const r=await msalApp.handleRedirectPromise();
  account=r?r.account:(msalApp.getAllAccounts()[0]||null);
@@ -460,7 +462,7 @@ V.import=()=>`<h2>Import / Export</h2>
  <div class="card"><h3>Importer un fichier Excel ou CSV</h3><p class="muted">Par exemple votre fichier CRM_Clients_GPC.xlsx. Tous les onglets sont lus ; vous choisissez ensuite la correspondance des colonnes.</p><input type="file" accept=".xlsx,.xls,.csv" onchange="this.files[0]&&impFile(this.files[0]).catch(e=>alert(e.message))" style="width:auto"></div><div id="impzone"></div>
  <div class="card"><h3>Exporter</h3><div class="row"><button class="btn p" onclick="exportXLSX()">⬇ Tout exporter en Excel (clients, contrats, sinistres, tâches)</button><button class="btn" onclick="backupJSON()">⬇ Sauvegarde complète (.json)</button><label class="btn">⬆ Restaurer une sauvegarde<input type="file" accept=".json" hidden onchange="this.files[0]&&restoreJSON(this.files[0])"></label></div></div>`;
 
-V.parametres=()=>{const cid=localStorage.getItem(CFG_ID)||'';const url=location.origin+location.pathname;const httpOK=location.protocol.startsWith('http');
+V.parametres=()=>{const cid=cfgId();const url=REDIR();const httpOK=location.protocol.startsWith('http');
  return `<h2>Paramètres — stockage OneDrive</h2>
  <div class="card"><h3>État</h3>${MODE==='onedrive'?`<p>✅ Connecté à OneDrive : <b>${esc(account.username)}</b><br>Fichier : <code>OneDrive › ${FILE}</code> · Pièces jointes : <code>OneDrive › ${ROOT}/Pieces_jointes</code></p><button class="btn" onclick="logout()">Se déconnecter</button>`:`<p>💾 Mode local (navigateur). ${D.clients.length} client(s) en local.</p>${cid?`<button class="btn p" onclick="login()">Se connecter avec gpc@gpcassurances.com</button>`:''}`}</div>
  <div class="card"><h3>ID d'application Microsoft (à faire une seule fois)</h3>
