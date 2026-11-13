@@ -239,7 +239,7 @@ async function save(){
  }catch(e){console.error(e);setSync('err');pending=true}
  finally{saving=false}
 }
-window.addEventListener('focus',async()=>{if(MODE!=='onedrive'||pending||saving)return;try{const m=await G(`/me/drive/root:/${enc(FILE)}?select=eTag`);if(m.ok){const j=await m.json();if(j.eTag!==ETAG){await loadRemote();route();setSync('ok');toast('Données actualisées')}}}catch(e){}});
+window.addEventListener('focus',async()=>{if(MODE!=='onedrive'||pending||saving)return;try{const m=await G(`/me/drive/root:/${enc(FILE)}?select=eTag`);if(m.ok){const j=await m.json();if(j.eTag!==ETAG){await loadRemote();route();setSync('ok');toast('Données actualisées')}}processInbox()}catch(e){}});
 window.addEventListener('beforeunload',e=>{if(pending||saving){e.preventDefault();e.returnValue=''}});
 
 /* ================= ACCÈS DONNÉES ================= */
@@ -480,6 +480,38 @@ V.parametres=()=>{const cid=cfgId();const url=REDIR();const httpOK=location.prot
  <p class="muted">Votre assistante : elle se connecte avec le même compte, ou partagez-lui le dossier <code>${ROOT}</code>. Les modifications faites en même temps sur deux postes sont fusionnées automatiquement.</p></div>
  ${MODE==='onedrive'&&localStorage.getItem(LKEY)?`<div class="card"><h3>Données locales trouvées</h3><p>Des données saisies en mode local existent sur ce navigateur.</p><button class="btn p" onclick="D=merge(D,JSON.parse(localStorage.getItem('${LKEY}')));dirty();localStorage.removeItem('${LKEY}');route();toast('Données transférées vers OneDrive')">Transférer vers OneDrive</button></div>`:''}`};
 
+
+/* ================= INTÉGRATION AUTOMATIQUE (dossier OneDrive CRM_GPC/A_integrer) ================= */
+const INBOX=ROOT+'/A_integrer';
+function findClient(m){if(!m)return null;const sd=digits(m.siret).slice(0,9);
+ return (sd.length===9&&D.clients.find(c=>digits(c.siret).slice(0,9)===sd))||D.clients.find(c=>norm(cname(c))===norm([m.nom,m.prenom].filter(Boolean).join(' ')))||D.clients.find(c=>norm(c.nom)===norm(m.nom))||null}
+function upsertClient(m,src){let c=findClient(m);if(!c){c=touch({id:uid(),statut:'Client',type:m.siret?'Professionnel':'Particulier',createdAt:Date.now(),journal:[]});D.clients.push(c)}
+ for(const f of F.client.map(x=>x.k))if(m[f]!==undefined&&m[f]!==''&&f!=='notes')c[f]=String(m[f]);if(m.notes)c.notes=[c.notes,m.notes].filter(Boolean).join('\n');touch(c);return c}
+function addJournal(c,t){c.journal=c.journal||[];c.journal.push({d:Date.now(),t});touch(c)}
+function applyUpdate(u,fname){let n=0;const src=u.source||fname;
+ for(const m of u.clients||[]){const c=upsertClient(m);addJournal(c,'Intégré automatiquement ('+src+')');n++}
+ for(const k of u.contrats||[]){const c=upsertClient(k.client||{});let x=k.numero&&D.contrats.find(z=>z.numero&&norm(z.numero)===norm(k.numero));
+  if(!x){x={id:uid(),clientId:c.id,statut:'En cours'};D.contrats.push(x)}
+  for(const f of F.contrat.map(y=>y.k))if(k[f]!==undefined&&k[f]!==''&&f!=='notes')x[f]=String(k[f]);if(k.notes)x.notes=[x.notes,k.notes].filter(Boolean).join(' · ');
+  if(!x.echeance&&x.dateEffet&&x.statut==='En cours')x.echeance=x.dateEffet;touch(x);addJournal(c,'Contrat '+(x.compagnie||'')+' '+(x.numero||'')+' : '+(k.evenement||'mise à jour')+' ('+src+')');n++}
+ for(const s of u.sinistres||[]){const c=upsertClient(s.client||{});let x=s.numero&&D.sinistres.find(z=>z.numero&&norm(z.numero)===norm(s.numero));
+  if(!x){x={id:uid(),clientId:c.id,statut:'Ouvert'};D.sinistres.push(x)}
+  if(s.contratNumero){const k=D.contrats.find(z=>norm(z.numero)===norm(s.contratNumero));if(k)x.contratId=k.id}
+  for(const f of F.sinistre.map(y=>y.k))if(s[f]!==undefined&&s[f]!==''&&f!=='contratId'&&f!=='description')x[f]=String(s[f]);if(s.description)x.description=[x.description,new Date().toLocaleDateString('fr-FR')+' : '+s.description].filter(Boolean).join('\n');
+  touch(x);addJournal(c,'Sinistre '+(x.numero||'')+' : '+(s.evenement||'mise à jour')+' ('+src+')');n++}
+ for(const cm of u.commissions||[]){const x=D.contrats.find(z=>z.numero&&norm(z.numero)===norm(cm.numero));if(!x)continue;
+  if(cm.commissionAnnuelle!==undefined)x.commission=String(cm.commissionAnnuelle);
+  x.notes=[x.notes,'Commission '+(cm.periode||'')+' : '+eur(cm.montant)+(cm.statut?' ('+cm.statut+')':'')].filter(Boolean).join(' · ');touch(x);n++}
+ for(const t of u.taches||[]){const c=t.client?findClient(t.client):null;D.taches.push(touch({id:uid(),clientId:c?c.id:'',titre:t.titre,echeance:t.echeance||iso(new Date()),type:t.type||'Autre',priorite:t.priorite||'Normale',notes:t.notes||'',fait:false}));n++}
+ for(const j of u.journal||[]){const c=findClient(j.client);if(c){addJournal(c,j.t);n++}}
+ return n}
+async function processInbox(){if(MODE!=='onedrive'||!LOADED)return;
+ try{const r=await G(`/me/drive/root:/${enc(INBOX)}:/children?$top=200`);if(!r.ok)return;const files=((await r.json()).value||[]).filter(f=>f.file&&/\.json$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));if(!files.length)return;
+  let dest=await G(`/me/drive/root:/${enc(INBOX+'/Traites')}`);if(dest.status===404)dest=await G(`/me/drive/root:/${enc(INBOX)}:/children`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Traites',folder:{}})});const did=(await dest.json()).id;
+  let tot=0;for(const f of files){try{const c=await G(`/me/drive/items/${f.id}/content`);const u=JSON.parse(await c.text());tot+=applyUpdate(u,f.name);
+    await G(`/me/drive/items/${f.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({parentReference:{id:did}})})}catch(e){console.error('[CRM] fichier à intégrer illisible',f.name,e)}}
+  if(tot){dirty();route();toast(tot+' mise(s) à jour intégrée(s) automatiquement')}}catch(e){console.error(e)}}
+
 /* ================= ROUTEUR ================= */
 function route(){const h=location.hash.slice(2)||'dashboard';const [path,qs]=h.split('?');const parts=path.split('/');const p=new URLSearchParams(qs||'');
  const v=parts[0];document.querySelectorAll('#side nav a').forEach(a=>a.classList.toggle('on',a.dataset.n===(v==='client'?'clients':v)));
@@ -488,9 +520,9 @@ window.addEventListener('hashchange',route);
 
 (async function init(){
  try{if(await initMsal()){MODE='onedrive';$('#acct').innerHTML='☁ '+esc(account.username);await loadRemote()}}
- catch(e){console.error(e);$('#main').innerHTML=`<div class="banner">⚠ Impossible de charger les données OneDrive (${esc(e.message)}). Aucune modification n'est enregistrée tant que les données ne sont pas chargées. <button class="btn p" onclick="location.reload()">Réessayer</button></div>`;setSync('err');return}
+ catch(e){console.error(e);if(MODE==='onedrive'){$('#main').innerHTML=`<div class="banner">⚠ Impossible de charger les données OneDrive (${esc(e.message)}). Aucune modification n'est enregistrée tant que les données ne sont pas chargées. <button class="btn p" onclick="location.reload()">Réessayer</button></div>`;setSync('err');return}else toast('Connexion OneDrive impossible, mode local')}
  if(MODE==='local'){try{D=Object.assign(empty(),JSON.parse(localStorage.getItem(LKEY)||'null')||{})}catch(e){}$('#acct').innerHTML='💾 Mode local<br><a href="#/parametres" style="color:#93c5fd">Connecter OneDrive</a>'}
- setSync('ok');route()})();
+ setSync('ok');route();processInbox()})();
 </script>
 </body>
 </html>
