@@ -253,7 +253,7 @@ function remove(coll,id){D[coll]=D[coll].filter(x=>x.id!==id);D.deleted[id]=Date
 function nextEch(c){if(!c.echeance)return null;const d=new Date(c.echeance+'T00:00');if(isNaN(d))return null;const t=today();while(d<t)d.setFullYear(d.getFullYear()+1);return d}
 const daysTo=d=>Math.round((d-today())/864e5);
 const active=c=>(c.statut||'En cours')==='En cours';
-function recalcStatut(c){if(!c)return;const k=D.contrats.filter(x=>x.clientId===c.id);if(!k.length)return;const s=k.some(active)?'Client':k.some(x=>x.statut==='Devis'||x.statut==='En attente')?'Prospect':'Ancien client';if(c.statut!==s){c.statut=s;touch(c)}}
+function recalcStatut(c){if(!c)return;const k=D.contrats.filter(x=>x.clientId===c.id);if(!k.length)return;const s=k.some(x=>active(x)||x.statut==='Suspendu')?'Client':k.some(x=>x.statut==='Devis'||x.statut==='En attente')?'Prospect':'Ancien client';if(c.statut!==s){c.statut=s;touch(c)}}
 const partner=k=>(k.intermediaire||'').trim()||((k.compagnie||'(non renseigné)')+' (direct)');
 function bStat(s){const m={'Devis':'b-info','En cours':'b-ok','Client':'b-ok','Prospect':'b-info','Résilié':'b-bad','Ancien client':'b-bad','Sans effet':'b-bad','Suspendu':'b-warn','En attente':'b-warn','Ouvert':'b-warn','En expertise':'b-warn','En attente de pièces':'b-warn','Réglé':'b-ok','Clos':'b-ok','Refusé':'b-bad','Urgente':'b-bad','Haute':'b-warn'};return s?`<span class="bdg ${m[s]||''}">${esc(s)}</span>`:''}
 
