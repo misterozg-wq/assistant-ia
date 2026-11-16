@@ -122,8 +122,7 @@
 const DEFAULT_PROVIDERS = [
   { id:'pollinations', name:'Pollinations', url:'https://text.pollinations.ai/openai', urlKeyed:'https://gen.pollinations.ai/v1/chat/completions', model:'openai', enabled:true, noKey:true,
     help:'h_poll', link:'https://enter.pollinations.ai' },
-  { id:'deepseek_or', vision:true, name:'OpenRouter', url:'https://openrouter.ai/api/v1/chat/completions', model:'openrouter/free', enabled:true,
-    help:'h_or', link:'https://openrouter.ai/keys' },
+  { id:'deepseek_officiel', name:'DeepSeek', url:'https://api.deepseek.com/chat/completions', model:'deepseek-chat', enabled:true, help:'h_or', link:'https://platform.deepseek.com/api_keys' },
   { id:'llm7', name:'LLM7.io', url:'https://api.llm7.io/v1/chat/completions', model:'default', enabled:true, noKey:true, anonKey:'unused',
     help:'h_llm7', link:'https://token.llm7.io' },
   { id:'cohere', name:'Cohere', url:'https://api.cohere.ai/compatibility/v1/chat/completions', model:'command-a-03-2025', enabled:true,
@@ -131,7 +130,6 @@ const DEFAULT_PROVIDERS = [
   { id:'nvidia', name:'NVIDIA NIM', url:'https://integrate.api.nvidia.com/v1/chat/completions', model:'openai/gpt-oss-120b', enabled:true,
     help:'h_nv', link:'https://build.nvidia.com' },
 ];
-
 const DEFAULT_SYSTEM = "Tu es un assistant expert des smartphones (Android et iPhone) : réglages, applications, dépannage, sécurité, batterie, sauvegarde, transfert de données, réseaux et Wi-Fi. Réponds en français, de façon claire et concise, avec des étapes numérotées quand c'est utile. Pour les autres sujets, réponds aussi de ton mieux.";
 
 // ---------- Stockage ----------
