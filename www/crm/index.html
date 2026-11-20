@@ -62,6 +62,8 @@ textarea{min-height:80px;resize:vertical}
 .jr{border-left:3px solid #bfdbfe;padding:6px 12px;margin:8px 0}.jr small{color:var(--mut)}
 code{background:#f1f5f9;padding:1px 5px;border-radius:4px}
 ol li{margin-bottom:6px}
+body.r-lecture [onclick*="edit"],body.r-lecture [onclick*="del("],body.r-lecture [onclick*="delClient"],body.r-lecture [onclick*="delPJ"],body.r-lecture [onclick*="addJ"],body.r-lecture [onclick*="toggleTache"],body.r-lecture #drop,
+body.r-gestion [onclick*="del("],body.r-gestion [onclick*="delClient"],body.r-gestion [onclick*="delPJ"],body:not(.r-admin) #side a[data-n="import"]{display:none!important}
 </style>
 </head>
 <body>
@@ -203,15 +205,38 @@ const LKEY='crmgpc_data', CFG_ID='crmgpc_clientId', DEFAULT_CID='a97b0a70-9408-4
 const cfgId=()=>localStorage.getItem(CFG_ID)||DEFAULT_CID;
 const REDIR=()=>location.origin+location.pathname.replace(/index\.html$/,'');
 const ROOT='CRM_GPC', FILE=ROOT+'/crm-data.json';
-const SCOPES=['User.Read','Files.ReadWrite'];
+let SCOPES=['User.Read','Files.ReadWrite'];
 const empty=()=>({clients:[],contrats:[],sinistres:[],taches:[],deleted:{},v:1});
 let D=empty(), MODE='local', ETAG=null, saveT=null, saving=false, pending=false;
 let msalApp=null, account=null;
 
 function setSync(s){const m={ok:'✓ Enregistré',saving:'⟳ Enregistrement…',err:'⚠ Erreur d\'enregistrement',load:'⟳ Chargement…'};$('#sync').innerHTML=(MODE==='onedrive'?'☁ OneDrive · ':'💾 Local · ')+(m[s]||s)}
 function touch(o){o.updatedAt=Date.now();return o}
-function dirty(){pending=true;clearTimeout(saveT);saveT=setTimeout(save,700);setSync('saving')}
+function dirty(){if(ROLE==='lecture'){deny();return}pending=true;clearTimeout(saveT);saveT=setTimeout(save,700);setSync('saving')}
 function enc(p){return p.split('/').map(encodeURIComponent).join('/')}
+/* ===== Accès multi-utilisateurs : dossier CRM_GPC propre (/me/drive) ou partagé par gpc@gpcassurances.com ===== */
+let SHARE=null; // {d: driveId, f: id du dossier CRM_GPC partagé}
+const DRV=()=>SHARE?'/drives/'+SHARE.d:'/me/drive';
+function P(path){if(!SHARE)return '/me/drive/root:/'+enc(path);const rel=path===ROOT?'':path.replace(ROOT+'/','');return '/drives/'+SHARE.d+'/items/'+SHARE.f+(rel?':/'+enc(rel):'')}
+async function findShared(){SCOPES=['User.Read','Files.ReadWrite.All'];
+ const r=await G('/me/drive/sharedWithMe?$top=200');if(!r.ok)return false;const j=await r.json();
+ const it=(j.value||[]).find(x=>x.remoteItem&&x.remoteItem.folder&&x.name===ROOT);if(!it)return false;
+ SHARE={d:it.remoteItem.parentReference.driveId,f:it.remoteItem.id};localStorage.setItem('crmgpc_share',JSON.stringify(SHARE));return true}
+/* Niveaux : admin (tout + gestion des accès) / gestion (créer, modifier ; pas supprimer, importer, exporter, paramétrer) / lecture (consulter, copier) */
+let ROLE='admin', ACCES={utilisateurs:[]};
+const NIVEAUX={admin:'Administrateur',gestion:'Gestionnaire',lecture:'Consultation'};
+function can(a){if(ROLE==='admin')return true;if(ROLE==='gestion')return a==='edit';return false}
+function deny(){toast(ROLE==='lecture'?'Accès en consultation : modification impossible.':'Action réservée à l\'administrateur.');return true}
+async function loadAcces(){
+ try{const r=await G(P(ROOT+'/acces.json')+':/content');ACCES=r.ok?await r.json():{utilisateurs:[]}}catch(e){ACCES={utilisateurs:[]}}
+ ACCES.utilisateurs=ACCES.utilisateurs||[];
+ if(!SHARE){ROLE='admin'}else{const me=(account.username||'').toLowerCase();const u=ACCES.utilisateurs.find(x=>(x.email||'').toLowerCase()===me);ROLE=u?u.niveau:'lecture'}
+ document.body.classList.remove('r-admin','r-gestion','r-lecture');document.body.classList.add('r-'+ROLE)}
+async function saveAcces(){if(!can('admin'))return deny();const r=await G(P(ROOT+'/acces.json')+':/content',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(ACCES,null,1)});if(!r.ok)return alert('Enregistrement des accès impossible ('+r.status+')');toast('Accès enregistrés');route()}
+function addAcces(){const e=$('#ac_e').value.trim().toLowerCase(),n=$('#ac_n').value.trim(),l=$('#ac_l').value;if(!/@/.test(e))return alert('Adresse email du compte Microsoft invalide');
+ ACCES.utilisateurs=ACCES.utilisateurs.filter(x=>x.email!==e);ACCES.utilisateurs.push({email:e,nom:n,niveau:l});saveAcces()}
+function delAcces(e){if(!confirm('Retirer l\'accès de '+e+' ?'))return;ACCES.utilisateurs=ACCES.utilisateurs.filter(x=>x.email!==e);saveAcces()}
+function setNiveau(e,l){const u=ACCES.utilisateurs.find(x=>x.email===e);if(u){u.niveau=l;saveAcces()}}
 
 async function initMsal(){
  const cid=cfgId();if(!cid||!location.protocol.startsWith('http'))return false;
@@ -224,7 +249,7 @@ async function initMsal(){
 }
 async function login(){if(!location.protocol.startsWith('http'))return alert("La connexion OneDrive nécessite que la page soit ouverte depuis une adresse web (https://… ou http://localhost), pas en double-cliquant sur le fichier. Voir Paramètres.");try{if(!msalApp)await initMsal();if(!msalApp)return alert('Renseignez d\'abord l\'ID d\'application.');await msalApp.loginRedirect({scopes:SCOPES,prompt:'select_account'})}catch(e){alert('Connexion impossible : '+e.message)}}
 async function logout(){if(msalApp&&account)await msalApp.logoutRedirect({account})}
-async function token(){try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}catch(e){await msalApp.acquireTokenRedirect({scopes:SCOPES,account})}}
+async function token(){if(localStorage.getItem('crmgpc_share'))SCOPES=['User.Read','Files.ReadWrite.All'];try{return (await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}catch(e){await msalApp.acquireTokenRedirect({scopes:SCOPES,account})}}
 async function G(path,opt={}){const t=await token();return fetch(path.startsWith('http')?path:'https://graph.microsoft.com/v1.0'+path,{...opt,headers:{Authorization:'Bearer '+t,...(opt.headers||{})}})}
 
 function merge(a,b){const out=empty();out.deleted={...(a.deleted||{}),...(b.deleted||{})};
@@ -233,14 +258,18 @@ function merge(a,b){const out=empty();out.deleted={...(a.deleted||{}),...(b.dele
 let LOADED=false;
 async function loadRemote(){
  setSync('load');let m;
- for(let i=0;i<4;i++){m=await G(`/me/drive/root:/${enc(FILE)}?t=${Date.now()}`);console.log('[CRM] chargement OneDrive',m.status);if(m.ok)break;await new Promise(r=>setTimeout(r,1200*(i+1)))}
+ for(let i=0;i<4;i++){m=await G(`${P(FILE)}?t=${Date.now()}`);console.log('[CRM] chargement OneDrive',m.status);if(m.ok)break;await new Promise(r=>setTimeout(r,1200*(i+1)))}
+ if(m.status===404&&!SHARE){let sh=null;try{sh=JSON.parse(localStorage.getItem('crmgpc_share')||'null')}catch(e){}
+  if(sh){SHARE=sh;return loadRemote()}
+  try{if(await findShared())return loadRemote()}catch(e){console.error(e)}}
+ if(m.status===404&&SHARE){localStorage.removeItem('crmgpc_share');throw new Error('dossier CRM_GPC partagé introuvable')}
  if(m.status===404){const s=await G(`/me/drive/root/search(q='crm-data.json')`);const j=s.ok?await s.json():{value:[]};if((j.value||[]).some(x=>x.name==='crm-data.json'&&x.parentReference&&/CRM_GPC/.test(x.parentReference.path||'')))throw new Error('fichier présent mais illisible');ETAG=null;D=empty();LOADED=true;return}
  if(!m.ok)throw new Error('OneDrive '+m.status);
  const meta=await m.json();ETAG=meta.eTag;
- const r=await G(`/me/drive/items/${meta.id}/content`);if(!r.ok)throw new Error('Lecture '+r.status);D=Object.assign(empty(),await r.json());LOADED=true;
+ const r=await G(`${DRV()}/items/${meta.id}/content`);if(!r.ok)throw new Error('Lecture '+r.status);D=Object.assign(empty(),await r.json());LOADED=true;
 }
 async function uploadBig(path,blob,conflict='replace'){
- const s=await G(`/me/drive/root:/${enc(path)}:/createUploadSession`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':conflict}})});
+ const s=await G(`${P(path)}:/createUploadSession`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:{'@microsoft.graph.conflictBehavior':conflict}})});
  if(!s.ok)throw new Error('Session '+s.status);const {uploadUrl}=await s.json();const CH=327680*20;let r;
  for(let i=0;i<blob.size;i+=CH){const part=blob.slice(i,Math.min(i+CH,blob.size));r=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Range':`bytes ${i}-${i+part.size-1}/${blob.size}`},body:part});if(!r.ok&&r.status!==202)throw new Error('Envoi '+r.status)}
  return r.json();
@@ -250,11 +279,12 @@ async function save(){
  saving=true;pending=false;
  try{
   if(MODE==='local'){localStorage.setItem(LKEY,JSON.stringify(D));setSync('ok');return}
+  if(ROLE==='lecture'){setSync('ok');return}
   if(!LOADED){setSync('err');pending=true;toast('Données OneDrive non chargées : rechargez la page avant de modifier.');return}
   const body=JSON.stringify(D);let j;
   if(body.length>3800000){j=await uploadBig(FILE,new Blob([body],{type:'application/json'}))}
   else{const h={'Content-Type':'application/json'};if(ETAG)h['If-Match']=ETAG;
-   const r=await G(`/me/drive/root:/${enc(FILE)}:/content`,{method:'PUT',headers:h,body});
+   const r=await G(`${P(FILE)}:/content`,{method:'PUT',headers:h,body});
    if(r.status===412){const mine=D;await loadRemote();D=merge(D,mine);saving=false;toast('Modifications d\'un autre poste fusionnées');route();return save()}
    if(!r.ok)throw new Error(r.status);j=await r.json()}
   ETAG=j.eTag;setSync('ok');
@@ -262,7 +292,7 @@ async function save(){
  }catch(e){console.error(e);setSync('err');pending=true}
  finally{saving=false}
 }
-window.addEventListener('focus',async()=>{if(MODE!=='onedrive'||pending||saving)return;try{const m=await G(`/me/drive/root:/${enc(FILE)}?select=eTag`);if(m.ok){const j=await m.json();if(j.eTag!==ETAG){await loadRemote();route();setSync('ok');toast('Données actualisées')}}processInbox()}catch(e){}});
+window.addEventListener('focus',async()=>{if(MODE!=='onedrive'||pending||saving)return;try{const m=await G(`${P(FILE)}?select=eTag`);if(m.ok){const j=await m.json();if(j.eTag!==ETAG){await loadRemote();route();setSync('ok');toast('Données actualisées')}}processInbox()}catch(e){}});
 window.addEventListener('beforeunload',e=>{if(pending||saving){e.preventDefault();e.returnValue=''}});
 
 /* ================= ACCÈS DONNÉES ================= */
@@ -317,28 +347,28 @@ function formModal(title,kind,obj,ctx,onSave){
  <div class="full row"><span class="sp"></span><button type="button" class="btn" onclick="closeModal()">Annuler</button><button class="btn p">Enregistrer</button></div></form>`);
  $('#frm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target);const o={...obj};for(const f of F[kind])if(f.t!=='sep')o[f.k]=(fd.get(f.k)??'').toString().trim();onSave(touch(o));closeModal();dirty();route()}}
 
-function editClient(id){const o=id?cli(id):{id:uid(),statut:'Client',type:'Professionnel',createdAt:Date.now(),journal:[]};
+function editClient(id){if(!can('edit'))return deny();const o=id?cli(id):{id:uid(),statut:'Client',type:'Professionnel',createdAt:Date.now(),journal:[]};
  formModal(id?'Modifier le client':'Nouveau client','client',o,{},x=>{
   if(!id){const dup=D.clients.find(c=>norm(cname(c))===norm(cname(x)));if(dup&&!confirm('Un client « '+cname(dup)+' » existe déjà. Créer quand même ?'))return;D.clients.push(x);location.hash='#/client/'+x.id}
   else Object.assign(cli(id),x)})}
-function editContrat(id,clientId){let o=id?D.contrats.find(c=>c.id===id):{id:uid(),clientId,statut:'En cours'};
+function editContrat(id,clientId){if(!can('edit'))return deny();let o=id?D.contrats.find(c=>c.id===id):{id:uid(),clientId,statut:'En cours'};
  if(!o.clientId){return pickClient(cid=>editContrat(null,cid))}
  formModal(id?'Modifier le contrat':'Nouveau contrat — '+cname(cli(o.clientId)),'contrat',o,{},x=>{
   if(!num(x.commission)&&num(x.tauxCom)){const base=num(x.primeHT)||num(x.primeTTC);if(base)x.commission=(base*num(x.tauxCom)/100).toFixed(2)}
   if(id)Object.assign(o,x);else D.contrats.push(x);recalcStatut(cli(x.clientId));const kk=id?o:x;if(kk.statut==='Devis'&&!kk.packConformite)setTimeout(()=>packConformite(kk.id,true),300)})}
-function editSinistre(id,clientId){let o=id?D.sinistres.find(c=>c.id===id):{id:uid(),clientId,statut:'Ouvert',dateDeclaration:iso(new Date())};
+function editSinistre(id,clientId){if(!can('edit'))return deny();let o=id?D.sinistres.find(c=>c.id===id):{id:uid(),clientId,statut:'Ouvert',dateDeclaration:iso(new Date())};
  if(!o.clientId){return pickClient(cid=>editSinistre(null,cid))}
  formModal(id?'Modifier le sinistre':'Nouveau sinistre — '+cname(cli(o.clientId)),'sinistre',o,{clientId:o.clientId},x=>{if(id)Object.assign(o,x);else D.sinistres.push(x)})}
-function editTache(id,clientId,preset={}){let o=id?D.taches.find(c=>c.id===id):{id:uid(),clientId:clientId||'',priorite:'Normale',type:'Relance',echeance:iso(new Date()),fait:false,...preset};
+function editTache(id,clientId,preset={}){if(!can('edit'))return deny();let o=id?D.taches.find(c=>c.id===id):{id:uid(),clientId:clientId||'',priorite:'Normale',type:'Relance',echeance:iso(new Date()),fait:false,...preset};
  formModal(id?'Modifier la tâche':'Nouvelle tâche','tache',o,{},x=>{if(id)Object.assign(o,x);else D.taches.push(x)})}
 function pickClient(cb){modal(`<h3>Choisir le client</h3><input id="pk" placeholder="Tapez un nom, une référence…"><div id="pkr" style="max-height:360px;overflow:auto;margin-top:10px"></div>`);
  const r=()=>{const n=norm($('#pk').value);$('#pkr').innerHTML=D.clients.filter(c=>!n||norm(cname(c)+' '+c.reference).includes(n)).slice(0,40).map(c=>`<div class="fld" style="cursor:pointer" data-id="${c.id}"><b>${esc(cname(c))}</b> <span class="muted">${esc(c.reference||'')}</span></div>`).join('')||'<p class="muted">Aucun client</p>'};
  $('#pk').oninput=r;r();$('#pkr').onclick=e=>{const d=e.target.closest('[data-id]');if(d){closeModal();cb(d.dataset.id)}}}
-function del(coll,id,label){if(confirm('Supprimer '+label+' ?')){remove(coll,id);route()}}
-function delClient(id){const c=cli(id);if(!confirm(`Supprimer ${cname(c)} et ses ${ctOf(id).length} contrat(s), sinistres et tâches ?\n(Les pièces jointes restent dans OneDrive.)`))return;
+function del(coll,id,label){if(!can('del'))return deny();if(confirm('Supprimer '+label+' ?')){remove(coll,id);route()}}
+function delClient(id){if(!can('del'))return deny();const c=cli(id);if(!confirm(`Supprimer ${cname(c)} et ses ${ctOf(id).length} contrat(s), sinistres et tâches ?\n(Les pièces jointes restent dans OneDrive.)`))return;
  for(const k of ['contrats','sinistres','taches'])D[k].filter(x=>x.clientId===id).forEach(x=>{D.deleted[x.id]=Date.now()});
  D.contrats=D.contrats.filter(x=>x.clientId!==id);D.sinistres=D.sinistres.filter(x=>x.clientId!==id);D.taches=D.taches.filter(x=>x.clientId!==id);remove('clients',id);location.hash='#/clients'}
-function toggleTache(id){const t=D.taches.find(x=>x.id===id);t.fait=!t.fait;touch(t);dirty();route()}
+function toggleTache(id){if(!can('edit'))return deny();const t=D.taches.find(x=>x.id===id);t.fait=!t.fait;touch(t);dirty();route()}
 
 /* ================= COPIER / COLLER ================= */
 function clientLines(c){return F.client.filter(f=>f.k!=='notes'&&f.t!=='sep'&&c[f.k]).map(f=>[f.l,f.t==='date'?fr(c[f.k]):c[f.k]])}
@@ -362,16 +392,16 @@ function pjFolder(c){if(!c.pjFolder){c.pjFolder=(cname(c).replace(/[\\/:*?"<>|#%
 async function listPJ(id){const box=$('#pjlist');if(!box)return;
  if(MODE!=='onedrive'){box.innerHTML='<p class="muted">Connectez OneDrive (Paramètres) pour déposer et consulter les pièces jointes.</p>';return}
  box.innerHTML='<p class="muted">Chargement…</p>';
- try{const r=await G(`/me/drive/root:/${enc(pjFolder(cli(id)))}:/children?$top=500&$orderby=lastModifiedDateTime desc`);
+ try{const r=await G(`${P(pjFolder(cli(id)))}:/children?$top=500&$orderby=lastModifiedDateTime desc`);
   if(r.status===404){box.innerHTML='<p class="muted">Aucune pièce jointe.</p>';return}
   const j=await r.json();const it=(j.value||[]).filter(x=>x.file);
   box.innerHTML=it.length?`<div class="tw"><table><tr><th>Fichier</th><th>Taille</th><th>Modifié le</th><th></th></tr>${it.map(f=>`<tr><td><a href="${esc(f.webUrl)}" target="_blank">📎 ${esc(f.name)}</a></td><td class="nowrap">${(f.size/1024).toFixed(0)} Ko</td><td class="nowrap">${fr(new Date(f.lastModifiedDateTime))}</td><td class="right nowrap"><a class="btn s" href="${esc(f['@microsoft.graph.downloadUrl']||f.webUrl)}">⬇</a> <button class="btn s" data-copy="${esc(f.webUrl)}" title="Copier le lien">🔗</button> <button class="btn s d" onclick="delPJ('${f.id}','${id}')">✕</button></td></tr>`).join('')}</table></div>`:'<p class="muted">Aucune pièce jointe.</p>'}
  catch(e){box.innerHTML='<p class="muted">Erreur : '+esc(e.message)+'</p>'}}
 const QUEUE=ROOT+'/A_analyser';
-async function putFile(path,f){if(f.size<4e6){const r=await G(`/me/drive/root:/${enc(path)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:'PUT',body:f});if(!r.ok)throw new Error(r.status);return r.json()}return uploadBig(path,f,'rename')}
+async function putFile(path,f){if(f.size<4e6){const r=await G(`${P(path)}:/content?@microsoft.graph.conflictBehavior=rename`,{method:'PUT',body:f});if(!r.ok)throw new Error(r.status);return r.json()}return uploadBig(path,f,'rename')}
 async function queueAnalyse(c,item,note){const req={type:'analyse',date:new Date().toISOString(),client:c?{id:c.id,nom:cname(c),siret:c.siret||'',reference:c.reference||''}:null,fichier:{nom:item.name,itemId:item.id,webUrl:item.webUrl,parentPath:(item.parentReference||{}).path||''},note:note||''};
- await G(`/me/drive/root:/${enc(QUEUE+'/'+iso(new Date())+'_'+uid()+'.json')}:/content`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(req,null,1)})}
-async function uploadPJ(id,files,analyse,note){if(MODE!=='onedrive')return alert('Connectez OneDrive dans Paramètres pour déposer des fichiers.');
+ await G(`${P(QUEUE+'/'+iso(new Date())+'_'+uid()+'.json')}:/content`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(req,null,1)})}
+async function uploadPJ(id,files,analyse,note){if(!can('edit'))return deny();if(MODE!=='onedrive')return alert('Connectez OneDrive dans Paramètres pour déposer des fichiers.');
  const c=id?cli(id):null;const folder=c?pjFolder(c):ROOT+'/Documents_divers';let n=0;
  for(const f of files){toast('Envoi de '+f.name+'…');
   try{const it=await putFile(folder+'/'+f.name,f);n++;if(analyse)await queueAnalyse(c,it,note)}
@@ -383,8 +413,8 @@ function depotGlobal(){modal(`<h3>Déposer un document</h3><div class="form"><di
  <div class="full"><label><input type="checkbox" id="dga" checked style="width:auto"> Analyser le document et mettre à jour les informations (client, contrat, sinistre, commission)</label></div>
  <div class="full drop" id="dgd">📂 Glissez-déposez ici ou <u>cliquez pour choisir</u><input type="file" id="dgf" multiple hidden></div></div><div class="row"><span class="sp"></span><button class="btn" onclick="closeModal()">Fermer</button></div>`);
  const go=fs=>{const id=$('#dgc').value,a=$('#dga').checked,nt=$('#dgn').value;closeModal();uploadPJ(id,fs,a,nt)};const d=$('#dgd'),fi=$('#dgf');d.onclick=()=>fi.click();fi.onchange=()=>go([...fi.files]);d.ondragover=e=>{e.preventDefault();d.classList.add('ov')};d.ondragleave=()=>d.classList.remove('ov');d.ondrop=e=>{e.preventDefault();go([...e.dataTransfer.files])}}
-async function delPJ(itemId,id){if(!confirm('Supprimer ce fichier de OneDrive ?'))return;await G('/me/drive/items/'+itemId,{method:'DELETE'});listPJ(id)}
-async function openFolder(id){if(MODE!=='onedrive')return;const r=await G(`/me/drive/root:/${enc(pjFolder(cli(id)))}`);if(r.ok){window.open((await r.json()).webUrl,'_blank')}else toast('Dossier vide pour l\'instant')}
+async function delPJ(itemId,id){if(!can('del'))return deny();if(!confirm('Supprimer ce fichier de OneDrive ?'))return;await G(DRV()+'/items/'+itemId,{method:'DELETE'});listPJ(id)}
+async function openFolder(id){if(MODE!=='onedrive')return;const r=await G(`${P(pjFolder(cli(id)))}`);if(r.ok){window.open((await r.json()).webUrl,'_blank')}else toast('Dossier vide pour l\'instant')}
 
 /* ================= VUES ================= */
 const V={};
@@ -429,7 +459,7 @@ V.client=(p,id,tab='infos')=>{const c=cli(id);if(!c)return '<p>Client introuvabl
  <div class="row" style="margin-bottom:14px"><h2 style="margin:0">${cp(cname(c))}</h2>${bStat(c.statut)}<span class="bdg">${esc(c.type||'')}</span>${c.reference?`<span class="muted">Réf. ${cp(c.reference)}</span>`:''}<span class="sp"></span>
  <button class="btn" onclick="panneau('${id}')" title="Petite fenêtre à placer à côté de l'extranet">📋 Panneau de copie</button><button class="btn" onclick="copyFiche('${id}')">Copier la fiche</button><button class="btn" onclick="copyTSV('${id}')" title="Pour coller dans Excel / Google Sheets">Copier pour tableur</button><button class="btn" onclick="editClient('${id}')">✎ Modifier</button><button class="btn d" onclick="delClient('${id}')">Supprimer</button></div>
  <div class="tabs">${T('infos','Informations')}${T('contrats','Contrats ('+cts.length+')')}${T('sinistres','Sinistres ('+sins.length+')')}${T('taches','Tâches ('+tks.filter(t=>!t.fait).length+')')}${T('docs','Pièces jointes')}${T('journal','Journal ('+(c.journal||[]).length+')')}</div>${body}`};
-function addJ(id){const t=$('#jt').value.trim();if(!t)return;const c=cli(id);c.journal=c.journal||[];c.journal.push({d:Date.now(),t});touch(c);dirty();route()}
+function addJ(id){if(!can('edit'))return deny();const t=$('#jt').value.trim();if(!t)return;const c=cli(id);c.journal=c.journal||[];c.journal.push({d:Date.now(),t});touch(c);dirty();route()}
 
 function ctTable(L,showCli){return `<div class="tw"><table><tr>${showCli?'<th>Client</th>':''}<th>Partenaire / Compagnie</th><th>Branche / produit</th><th>N° contrat</th><th>Effet</th><th>Échéance</th><th class="right">Prime TTC</th><th class="right">Comm.</th><th>Statut</th><th></th></tr>
  ${L.map(k=>`<tr>${showCli?`<td><a href="#/client/${k.clientId}/contrats">${esc(cname(cli(k.clientId)))}</a></td>`:''}<td><b>${esc(partner(k))}</b>${k.intermediaire?`<br><small class="muted">${esc(k.compagnie||'')}</small>`:''}</td><td>${esc(k.branche||'')}${k.produit?`<br><small class="muted">${esc(k.produit)}</small>`:''}</td><td>${cp(k.numero)}${k.reference?`<br><small class="muted">réf. ${cp(k.reference)}</small>`:''}</td><td class="nowrap">${cp(fr(k.dateEffet))}</td><td class="nowrap">${fr(k.echeance)}</td><td class="right nowrap">${eur(k.primeTTC)}</td><td class="right nowrap">${eur(k.commission)}</td><td>${bStat(k.statut)}</td><td class="right nowrap"><button class="btn s" title="${k.packConformite?'Pack conformité généré le '+fr(k.packConformite)+' — régénérer':'Générer le pack conformité (DER + devoir de conseil)'}" onclick="packConformite('${k.id}')">📄${k.packConformite?'✓':''}</button> <button class="btn s" onclick="editContrat('${k.id}')">✎</button> <button class="btn s d" onclick="del('contrats','${k.id}','ce contrat')">✕</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Aucun contrat.</td></tr>'}</table></div>`}
@@ -460,17 +490,17 @@ V.taches=(p)=>{const all=p.get('all');const L=D.taches.filter(t=>all||!t.fait);
 const XLSX_URLS=['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'];
 async function needX(){if(!window.XLSX)await loadScript(XLSX_URLS)}
 const fmtRow=(o,fs)=>{const r={};fs.forEach(f=>{let v=o[f.k];if(f.t==='date')v=fr(v);else if(f.t==='number'&&v!==''&&v!=null)v=num(v);r[f.l]=v??''});return r};
-async function exportXLSX(ids){await needX();const set=ids?new Set(ids):null;const cl=D.clients.filter(c=>!set||set.has(c.id));const cids=new Set(cl.map(c=>c.id));
+async function exportXLSX(ids){if(!can('admin'))return deny();await needX();const set=ids?new Set(ids):null;const cl=D.clients.filter(c=>!set||set.has(c.id));const cids=new Set(cl.map(c=>c.id));
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cl.map(c=>fmtRow(c,F.client))),'Clients');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.contrats.filter(k=>cids.has(k.clientId)).map(k=>({Client:cname(cli(k.clientId)),'Réf. client':cli(k.clientId)?.reference||'',Partenaire:partner(k),...fmtRow(k,F.contrat)}))),'Contrats');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.sinistres.filter(k=>cids.has(k.clientId)).map(s=>({Client:cname(cli(s.clientId)),...fmtRow({...s,contratId:D.contrats.find(x=>x.id===s.contratId)?.numero||''},F.sinistre)}))),'Sinistres');
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.taches.map(t=>({Client:t.clientId?cname(cli(t.clientId)):'',Fait:t.fait?'Oui':'Non',...fmtRow({...t,clientId:''},F.tache)}))),'Tâches');
  XLSX.writeFile(wb,'CRM_GPC_'+iso(new Date())+'.xlsx')}
-async function exportContrats(ids){await needX();const s=new Set(ids);const wb=XLSX.utils.book_new();
+async function exportContrats(ids){if(!can('admin'))return deny();await needX();const s=new Set(ids);const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(D.contrats.filter(k=>s.has(k.id)).map(k=>{const c=cli(k.clientId)||{};return {Client:cname(c),'Réf. client':c.reference||'',Type:c.type||'',Téléphone:c.tel||'',Email:c.email||'',...fmtRow(k,F.contrat)}})),'Contrats');XLSX.writeFile(wb,'Contrats_GPC_'+iso(new Date())+'.xlsx')}
-function backupJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));a.download='CRM_GPC_sauvegarde_'+iso(new Date())+'.json';a.click()}
-function restoreJSON(f){const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.clients)throw 0;if(confirm('Fusionner cette sauvegarde avec les données actuelles ?')){D=merge(D,x);dirty();route();toast('Sauvegarde restaurée')}}catch(e){alert('Fichier invalide')}};r.readAsText(f)}
+function backupJSON(){if(!can('admin'))return deny();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));a.download='CRM_GPC_sauvegarde_'+iso(new Date())+'.json';a.click()}
+function restoreJSON(f){if(!can('admin'))return deny();const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.clients)throw 0;if(confirm('Fusionner cette sauvegarde avec les données actuelles ?')){D=merge(D,x);dirty();route();toast('Sauvegarde restaurée')}}catch(e){alert('Fichier invalide')}};r.readAsText(f)}
 
 const TARGETS=[['','— ignorer —'],['c.nom','Client : Nom / Raison sociale'],['c.prenom','Client : Prénom'],['c.reference','Client : Référence'],['c.type','Client : Type (Pro/Particulier)'],['c.gerant','Client : Gérant / contact'],['c.siret','Client : SIRET'],['c.activite','Client : Activité'],['c.adresse','Client : Adresse'],['c.cp','Client : Code postal'],['c.ville','Client : Ville'],['c.tel','Client : Téléphone'],['c.email','Client : Email'],['c.dateNaissance','Client : Date de naissance'],['c.notes','Client : Notes'],
  ['k.compagnie','Contrat : Compagnie'],['k.intermediaire','Contrat : Intermédiaire'],['k.branche','Contrat : Branche / type'],['k.produit','Contrat : Produit'],['k.numero','Contrat : N° de contrat'],['k.reference','Contrat : Réf. interne'],['k.dateEffet','Contrat : Date d\'effet'],['k.echeance','Contrat : Échéance'],['k.fractionnement','Contrat : Fractionnement'],['k.primeTTC','Contrat : Prime TTC'],['k.primeHT','Contrat : Prime HT'],['k.tauxCom','Contrat : Taux comm. %'],['k.commission','Contrat : Commission €'],['k.statut','Contrat : Statut'],['k.notes','Contrat : Notes']];
@@ -478,7 +508,7 @@ function guess(h){const n=norm(h);const R=[[/raison|^nom|client|assure|souscript
   [/compagnie|assureur|porteur/,'k.compagnie'],[/grossiste|intermediaire|partenaire/,'k.intermediaire'],[/branche|type.*contrat|risque|garantie|categorie/,'k.branche'],[/produit|formule/,'k.produit'],[/n.? ?(de )?(contrat|police)|police|contrat/,'k.numero'],[/effet|souscription/,'k.dateEffet'],[/echeance/,'k.echeance'],[/fraction|periodicite/,'k.fractionnement'],[/taux/,'k.tauxCom'],[/commission|com\b|comm/,'k.commission'],[/ht/,'k.primeHT'],[/prime|cotisation|ttc|montant/,'k.primeTTC'],[/statut|etat|situation/,'k.statut']];
  for(const [r,t] of R)if(r.test(n))return t;return''}
 let IMP=null;
-async function impFile(f){await needX();const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});
+async function impFile(f){if(!can('admin'))return deny();await needX();const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:true});
  IMP={wb,sheets:wb.SheetNames.map(n=>{const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:true});let hi=rows.findIndex(r=>r.filter(x=>String(x).trim()).length>=2);if(hi<0)hi=0;return {n,rows,hi}})};
  const hs=[...new Set(IMP.sheets.flatMap(s=>(s.rows[s.hi]||[]).map(h=>String(h).trim()).filter(Boolean)))];IMP.headers=hs;
  $('#impzone').innerHTML=`<div class="card"><h3>1. Onglets à importer</h3>${IMP.sheets.map((s,i)=>`<label style="display:block"><input type="checkbox" style="width:auto" class="shk" value="${i}" ${s.rows.length>s.hi+1?'checked':''}> ${esc(s.n)} <span class="muted">(${Math.max(0,s.rows.length-s.hi-1)} lignes)</span></label>`).join('')}
@@ -507,8 +537,14 @@ V.import=()=>`<h2>Import / Export</h2>
  <div class="card"><h3>Importer un fichier Excel ou CSV</h3><p class="muted">Par exemple votre fichier CRM_Clients_GPC.xlsx. Tous les onglets sont lus ; vous choisissez ensuite la correspondance des colonnes.</p><input type="file" accept=".xlsx,.xls,.csv" onchange="this.files[0]&&impFile(this.files[0]).catch(e=>alert(e.message))" style="width:auto"></div><div id="impzone"></div>
  <div class="card"><h3>Exporter</h3><div class="row"><button class="btn p" onclick="exportXLSX()">⬇ Tout exporter en Excel (clients, contrats, sinistres, tâches)</button><button class="btn" onclick="backupJSON()">⬇ Sauvegarde complète (.json)</button><label class="btn">⬆ Restaurer une sauvegarde<input type="file" accept=".json" hidden onchange="this.files[0]&&restoreJSON(this.files[0])"></label></div></div>`;
 
+function accesCard(){const sel=(e,l)=>`<select onchange="setNiveau('${esc(e)}',this.value)">${Object.entries(NIVEAUX).map(([k,v])=>`<option value="${k}" ${k===l?'selected':''}>${v}</option>`).join('')}</select>`;
+ return `<div class="card"><h3>Accès des utilisateurs</h3><p class="muted">Chaque personne se connecte avec son propre compte Microsoft (identifiant, mot de passe, code de validation). 1) Partagez-lui le dossier OneDrive <b>CRM_GPC</b> (clic droit › Partager) : en « Peut modifier » pour Gestionnaire/Administrateur, en « Peut afficher » pour Consultation. 2) Ajoutez-la ci-dessous avec son niveau. Sans ligne ici, une personne qui a le partage est en Consultation.</p>
+ <div class="tw"><table><tr><th>Email du compte Microsoft</th><th>Nom</th><th>Niveau</th><th></th></tr><tr><td>${esc(account.username)}</td><td>Propriétaire</td><td>Administrateur</td><td></td></tr>
+ ${ACCES.utilisateurs.map(u=>`<tr><td>${esc(u.email)}</td><td>${esc(u.nom||'')}</td><td>${sel(u.email,u.niveau)}</td><td class="right"><button class="btn s d" onclick="delAcces('${esc(u.email)}')">✕</button></td></tr>`).join('')}</table></div>
+ <div class="row" style="margin-top:10px"><input id="ac_e" placeholder="email@exemple.com" style="width:auto;flex:1"><input id="ac_n" placeholder="Nom" style="width:auto"><select id="ac_l" style="width:auto"><option value="gestion">Gestionnaire</option><option value="lecture">Consultation</option><option value="admin">Administrateur</option></select><button class="btn p" onclick="addAcces()">Ajouter</button></div></div>`}
 V.parametres=()=>{const cid=cfgId();const url=REDIR();const httpOK=location.protocol.startsWith('http');
- return `<h2>Paramètres — stockage OneDrive</h2>
+ if(MODE==='onedrive'&&ROLE!=='admin')return `<h2>Paramètres</h2><div class="card"><p>Connecté : <b>${esc(account.username)}</b> — niveau <b>${NIVEAUX[ROLE]}</b>${SHARE?' (dossier CRM_GPC partagé)':''}</p><button class="btn" onclick="localStorage.removeItem('crmgpc_share');logout()">Se déconnecter</button></div>`;
+ return `<h2>Paramètres — stockage OneDrive</h2>${MODE==='onedrive'?accesCard():''}
  <div class="card"><h3>État</h3>${MODE==='onedrive'?`<p>✅ Connecté à OneDrive : <b>${esc(account.username)}</b><br>Fichier : <code>OneDrive › ${FILE}</code> · Pièces jointes : <code>OneDrive › ${ROOT}/Pieces_jointes</code></p><button class="btn" onclick="logout()">Se déconnecter</button>`:`<p>💾 Mode local (navigateur). ${D.clients.length} client(s) en local.</p>${cid?`<button class="btn p" onclick="login()">Se connecter avec gpc@gpcassurances.com</button>`:''}`}</div>
  <div class="card"><h3>ID d'application Microsoft (à faire une seule fois)</h3>
  <div class="row"><input id="cid" value="${esc(cid)}" placeholder="ex : 1a2b3c4d-…" style="max-width:420px"><button class="btn p" onclick="localStorage.setItem('${CFG_ID}',$('#cid').value.trim());location.reload()">Enregistrer</button></div>
@@ -580,11 +616,11 @@ function applyUpdate(u,fname){let n=0;const src=u.source||fname;
  for(const j of u.journal||[]){const c=findClient(j.client);if(c){addJournal(c,j.t);n++}}
 D.clients.forEach(recalcStatut);
  return n}
-async function processInbox(){if(MODE!=='onedrive'||!LOADED)return;
- try{const r=await G(`/me/drive/root:/${enc(INBOX)}:/children?$top=200`);if(!r.ok)return;const files=((await r.json()).value||[]).filter(f=>f.file&&/\.json$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));if(!files.length)return;
-  let dest=await G(`/me/drive/root:/${enc(INBOX+'/Traites')}`);if(dest.status===404)dest=await G(`/me/drive/root:/${enc(INBOX)}:/children`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Traites',folder:{}})});const did=(await dest.json()).id;
-  let tot=0;for(const f of files){try{const c=await G(`/me/drive/items/${f.id}/content`);const u=JSON.parse(await c.text());tot+=applyUpdate(u,f.name);
-    await G(`/me/drive/items/${f.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({parentReference:{id:did}})})}catch(e){console.error('[CRM] fichier à intégrer illisible',f.name,e)}}
+async function processInbox(){if(MODE!=='onedrive'||!LOADED||ROLE==='lecture')return;
+ try{const r=await G(`${P(INBOX)}:/children?$top=200`);if(!r.ok)return;const files=((await r.json()).value||[]).filter(f=>f.file&&/\.json$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));if(!files.length)return;
+  let dest=await G(`${P(INBOX+'/Traites')}`);if(dest.status===404)dest=await G(`${P(INBOX)}:/children`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Traites',folder:{}})});const did=(await dest.json()).id;
+  let tot=0;for(const f of files){try{const c=await G(`${DRV()}/items/${f.id}/content`);const u=JSON.parse(await c.text());tot+=applyUpdate(u,f.name);
+    await G(`${DRV()}/items/${f.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({parentReference:{id:did}})})}catch(e){console.error('[CRM] fichier à intégrer illisible',f.name,e)}}
   if(tot){dirty();route();toast(tot+' mise(s) à jour intégrée(s) automatiquement')}}catch(e){console.error(e)}}
 
 /* ================= ROUTEUR ================= */
@@ -594,7 +630,7 @@ function route(){const h=location.hash.slice(2)||'dashboard';const [path,qs]=h.s
 window.addEventListener('hashchange',route);
 
 (async function init(){
- try{if(await initMsal()){MODE='onedrive';$('#acct').innerHTML='☁ '+esc(account.username);await loadRemote()}}
+ try{if(await initMsal()){MODE='onedrive';await loadRemote();await loadAcces();$('#acct').innerHTML='☁ '+esc(account.username)+'<br><small>'+NIVEAUX[ROLE]+(SHARE?' · dossier partagé':'')+'</small>'}}
  catch(e){console.error(e);if(MODE==='onedrive'){$('#main').innerHTML=`<div class="banner">⚠ Impossible de charger les données OneDrive (${esc(e.message)}). Aucune modification n'est enregistrée tant que les données ne sont pas chargées. <button class="btn p" onclick="location.reload()">Réessayer</button></div>`;setSync('err');return}else toast('Connexion OneDrive impossible, mode local')}
  if(MODE==='local'){try{D=Object.assign(empty(),JSON.parse(localStorage.getItem(LKEY)||'null')||{})}catch(e){}$('#acct').innerHTML='💾 Mode local<br><a href="#/parametres" style="color:#93c5fd">Connecter OneDrive</a>'}
  setSync('ok');route();processInbox()})();
