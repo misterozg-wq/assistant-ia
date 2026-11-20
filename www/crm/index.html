@@ -136,6 +136,28 @@ const F={
   {k:'tel',l:'Téléphone'},{k:'tel2',l:'Téléphone 2'},{k:'email',l:'Email'},
   {k:'iban',l:'IBAN'},{k:'bic',l:'BIC'},
   {k:'origine',l:'Origine / Apporteur'},
+  {k:'_sepAuto',l:'Conducteur & véhicule (devis auto)',t:'sep'},
+  {k:'profession',l:'Profession'},
+  {k:'situationFamiliale',l:'Situation familiale',t:'select',o:['','Célibataire','Marié(e)','Pacsé(e)','Concubin(e)','Divorcé(e)','Veuf(ve)']},
+  {k:'datePermis',l:'Date d\'obtention du permis',t:'date'},
+  {k:'bonusMalus',l:'Bonus / malus (CRM)'},
+  {k:'moisAssure36',l:'Mois assuré sur les 36 derniers'},
+  {k:'sinistres36',l:'Nb sinistres sur 36 mois'},
+  {k:'vehMarque',l:'Véhicule : marque'},
+  {k:'vehModele',l:'Véhicule : modèle / version'},
+  {k:'vehEnergie',l:'Véhicule : énergie',t:'select',o:['','Essence','Diesel','Hybride','Hybride rechargeable','Électrique','GPL']},
+  {k:'vehCarrosserie',l:'Véhicule : carrosserie',t:'select',o:['','Berline','Citadine','SUV / Tout chemin','Break','Monospace','Coupé','Cabriolet','Utilitaire']},
+  {k:'vehCV',l:'Véhicule : puissance fiscale (CV)'},
+  {k:'vehImmat',l:'Véhicule : immatriculation'},
+  {k:'vehMEC',l:'Véhicule : 1re mise en circulation',t:'date'},
+  {k:'vehDateAchat',l:'Véhicule : date d\'achat',t:'date'},
+  {k:'vehFinancement',l:'Véhicule : financement',t:'select',o:['','Comptant','Crédit','LOA / Leasing','LLD']},
+  {k:'vehUsage',l:'Usage',t:'select',o:['','Privé','Privé + trajet travail','Professionnel','Tous déplacements']},
+  {k:'vehKm',l:'Kilométrage annuel'},
+  {k:'vehStationnement',l:'Stationnement la nuit',t:'select',o:['','Garage individuel fermé','Garage collectif fermé','Parking privé','Voie publique']},
+  {k:'vehCPGarage',l:'Code postal de stationnement'},
+  {k:'formuleSouhaitee',l:'Formule souhaitée',t:'select',o:['','Tiers','Tiers + vol/incendie','Tous risques']},
+  {k:'dateEffetSouhaitee',l:'Date d\'effet souhaitée',t:'date'},
   {k:'notes',l:'Notes',t:'textarea',full:1}],
  contrat:[
   {k:'intermediaire',l:'Partenaire (courtier grossiste, plateforme…) — vide si en direct',list:'dlPart'},
@@ -282,6 +304,7 @@ function closeModal(){$('#modal').style.display='none'}
 $('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 function fieldHtml(f,v,ctx){v=v??'';let i;
+ if(f.t==='sep')return `<div class="full" style="border-top:1px solid #e2e8f0;padding-top:10px;margin-top:4px"><b>${esc(f.l)}</b></div>`;
  if(f.t==='select')i=`<select name="${f.k}">${f.o.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
  else if(f.t==='textarea')i=`<textarea name="${f.k}">${esc(v)}</textarea>`;
  else if(f.t==='contrat')i=`<select name="${f.k}"><option value="">—</option>${ctOf(ctx.clientId).map(c=>`<option value="${c.id}" ${c.id===v?'selected':''}>${esc([c.compagnie,c.branche,c.numero].filter(Boolean).join(' · '))}</option>`).join('')}</select>`;
@@ -292,7 +315,7 @@ function formModal(title,kind,obj,ctx,onSave){
  modal(`<h3>${esc(title)}</h3><form id="frm" class="form">${F[kind].map(f=>fieldHtml(f,obj[f.k],ctx)).join('')}
  <datalist id="dlComp">${COMPAGNIES.map(c=>`<option>${c}</option>`).join('')}</datalist><datalist id="dlPart">${[...new Set(D.contrats.map(k=>k.intermediaire).filter(Boolean))].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist><datalist id="dlBr">${BRANCHES.map(c=>`<option>${c}</option>`).join('')}</datalist>
  <div class="full row"><span class="sp"></span><button type="button" class="btn" onclick="closeModal()">Annuler</button><button class="btn p">Enregistrer</button></div></form>`);
- $('#frm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target);const o={...obj};for(const f of F[kind])o[f.k]=(fd.get(f.k)??'').toString().trim();onSave(touch(o));closeModal();dirty();route()}}
+ $('#frm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target);const o={...obj};for(const f of F[kind])if(f.t!=='sep')o[f.k]=(fd.get(f.k)??'').toString().trim();onSave(touch(o));closeModal();dirty();route()}}
 
 function editClient(id){const o=id?cli(id):{id:uid(),statut:'Client',type:'Professionnel',createdAt:Date.now(),journal:[]};
  formModal(id?'Modifier le client':'Nouveau client','client',o,{},x=>{
@@ -318,9 +341,14 @@ function delClient(id){const c=cli(id);if(!confirm(`Supprimer ${cname(c)} et ses
 function toggleTache(id){const t=D.taches.find(x=>x.id===id);t.fait=!t.fait;touch(t);dirty();route()}
 
 /* ================= COPIER / COLLER ================= */
-function clientLines(c){return F.client.filter(f=>f.k!=='notes'&&c[f.k]).map(f=>[f.l,f.t==='date'?fr(c[f.k]):c[f.k]])}
+function clientLines(c){return F.client.filter(f=>f.k!=='notes'&&f.t!=='sep'&&c[f.k]).map(f=>[f.l,f.t==='date'?fr(c[f.k]):c[f.k]])}
 function copyFiche(id){const c=cli(id);let t=clientLines(c).map(([l,v])=>l+' : '+v).join('\n');
- const cts=ctOf(id);if(cts.length)t+='\n\nContrats :\n'+cts.map(k=>'- '+[k.compagnie,k.branche,k.numero&&'n° '+k.numero,k.statut].filter(Boolean).join(' · ')).join('\n');copyText(t)}
+ const cts=ctOf(id);if(cts.length)t+='\n\nContrats :\n'+cts.map(k=>'- '+[k.compagnie,k.branche,k.numero&&'n° '+k.numero,k.statut].filter(Boolean).join(' · ')).join('\n');copyText(t);sendFicheExtension(c)}
+/* Envoi de la fiche à l'extension Chrome « GPC Remplissage » (remplissage automatique des extranets) */
+function ficheData(c){const o={};for(const f of F.client)if(f.t!=='sep'&&f.k!=='notes'&&c[f.k])o[f.k]=String(c[f.k]);o.nomComplet=cname(c);o.id=c.id;return o}
+function sendFicheExtension(c){const d=ficheData(c);window.postMessage({type:'GPC_FICHE',fiche:d},'*');
+ clearTimeout(sendFicheExtension.t);sendFicheExtension.t=setTimeout(()=>{if(!sendFicheExtension.ok)toast('Fiche copiée (extension GPC Remplissage non détectée)')},900);sendFicheExtension.ok=false}
+window.addEventListener('message',e=>{if(e.source===window&&e.data&&e.data.type==='GPC_FICHE_OK'){sendFicheExtension.ok=true;toast('Fiche copiée et envoyée à l\'extension : '+e.data.nom)}});
 function copyTSV(id){const c=cli(id);const L=clientLines(c);copyText(L.map(x=>x[0]).join('\t')+'\n'+L.map(x=>x[1]).join('\t'))}
 function panneau(id){const c=cli(id);const w=window.open('','copieGPC','width=420,height=760,left='+(screen.availWidth-440)+',top=40');if(!w)return alert('Autorisez les fenêtres pop-up pour ce site.');
  const rows=clientLines(c).map(([l,v])=>({l,v}));

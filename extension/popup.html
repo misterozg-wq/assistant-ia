@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>GPC Remplissage</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;font-size:13px;width:330px;margin:0;color:#0f172a}
+header{background:#14213d;color:#fff;padding:10px 12px;font-weight:600}
+header small{display:block;font-weight:400;opacity:.8}
+.box{padding:10px 12px}
+button{width:100%;padding:9px;margin:4px 0;border-radius:7px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font:inherit}
+button.p{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.muted{color:#64748b;font-size:12px}
+#vals{max-height:230px;overflow:auto;border-top:1px solid #e2e8f0;margin-top:6px}
+#vals div{display:flex;justify-content:space-between;gap:8px;padding:4px 2px;border-bottom:1px solid #f1f5f9;cursor:pointer}
+#vals div:hover{background:#eff6ff}
+#vals span{color:#64748b}
+#vals b{text-align:right;font-weight:500}
+</style></head>
+<body>
+<header>GPC Remplissage<small id="fiche">Aucune fiche</small></header>
+<div class="box">
+ <button class="p" id="fill">Remplir cette page (Alt+Shift+G)</button>
+ <button id="learn">Apprendre une case pour ce site</button>
+ <button id="reset">Effacer les cases apprises de ce site</button>
+ <div class="muted" id="site"></div>
+ <div class="muted" style="margin-top:6px">Cliquez une valeur pour la copier :</div>
+ <div id="vals"></div>
+ <p class="muted">Rien n'est validé ni envoyé : vérifiez toujours le formulaire.</p>
+</div>
+<script src="popup.js"></script>
+</body></html>

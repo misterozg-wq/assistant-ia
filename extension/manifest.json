@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "GPC Remplissage",
+  "version": "1.0.0",
+  "description": "Garanties Protections Conseils — remplit les formulaires de devis des extranets compagnies avec la fiche client copiée depuis le CRM GPC.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GPC Remplissage",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "commands": {
+    "remplir": {
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
+      "description": "Remplir la page avec la fiche GPC"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://misterozg-wq.github.io/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "file:///*",
+        "https://*.gpcassurances.com/*",
+        "https://gpcassurances.com/*"
+      ],
+      "js": [
+        "crm-bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
