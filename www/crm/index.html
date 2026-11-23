@@ -138,6 +138,9 @@ const F={
   {k:'tel',l:'Téléphone'},{k:'tel2',l:'Téléphone 2'},{k:'email',l:'Email'},
   {k:'iban',l:'IBAN'},{k:'bic',l:'BIC'},
   {k:'origine',l:'Origine / Apporteur'},
+  {k:'assureurActuel',l:'Assureur actuel / précédent'},
+  {k:'contratActuel',l:'N° de contrat actuel'},
+  {k:'echeanceActuelle',l:'Échéance du contrat actuel',t:'date'},
   {k:'_sepAuto',l:'Conducteur & véhicule (devis auto)',t:'sep'},
   {k:'profession',l:'Profession'},
   {k:'situationFamiliale',l:'Situation familiale',t:'select',o:['','Célibataire','Marié(e)','Pacsé(e)','Concubin(e)','Divorcé(e)','Veuf(ve)']},
@@ -160,6 +163,7 @@ const F={
   {k:'vehCPGarage',l:'Code postal de stationnement'},
   {k:'formuleSouhaitee',l:'Formule souhaitée',t:'select',o:['','Tiers','Tiers + vol/incendie','Tous risques']},
   {k:'dateEffetSouhaitee',l:'Date d\'effet souhaitée',t:'date'},
+  {k:'vehAutreAssure',l:'Autre véhicule assuré (non repris)'},
   {k:'notes',l:'Notes',t:'textarea',full:1}],
  contrat:[
   {k:'intermediaire',l:'Partenaire (courtier grossiste, plateforme…) — vide si en direct',list:'dlPart'},
